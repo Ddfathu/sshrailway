@@ -11,17 +11,17 @@ const server = net.createServer((clientConn) => {
     let isHandshaked = false;
     let headerBuffer = Buffer.alloc(0);
 
-    // Fungsi utama membaca data dari aplikasi VPN di HP
+    // Fungsi utama membaca data payload dari aplikasi VPN di HP
     const handleRawData = (chunk) => {
         if (!isHandshaked) {
-            // Kumpulkan data potongan payload jika terpecah (anti-split payload panjang)
+            // Kumpulkan potongan data jika payload di-split oleh operator/aplikasi
             headerBuffer = Buffer.concat([headerBuffer, chunk]);
             const reqStr = headerBuffer.toString('utf8');
 
             // Cek apakah payload HTTP sudah lengkap (ditandai dengan double CRLF)
             if (reqStr.includes('\r\n\r\n')) {
                 isHandshaked = true;
-                clientConn.removeListener('data', handleRawData); // Cabut listener awal
+                clientConn.removeListener('data', handleRawData); // Cabut listener pencatat header
 
                 // Proses Jabat Tangan WebSocket
                 if (reqStr.toLowerCase().includes('upgrade: websocket') || reqStr.toLowerCase().includes('websocket')) {
@@ -42,10 +42,10 @@ const server = net.createServer((clientConn) => {
                     clientConn.write("HTTP/1.1 101 Switching Protocols\r\n\r\n");
                 }
 
-                // Setelah sukses 101, hubungkan ke Dropbear internal
+                // Setelah sukses merespon 101, hubungkan langsung ke Dropbear internal
                 connectToDropbear(clientConn, headerBuffer);
             } else if (headerBuffer.length > 65536) {
-                // Keamanan: Jika sampah payload kepanjangan banget (>64KB) dan gak kelar-kelar, putuskan!
+                // Keamanan: Jika payload sampah kepanjangan banget (>64KB) putuskan rute
                 clientConn.destroy();
             }
         }
@@ -54,37 +54,45 @@ const server = net.createServer((clientConn) => {
     clientConn.on('data', handleRawData);
 });
 
-// 🔥 CORE FILTER: Memotong sampah payload dan hanya menyisakan data SSH murni
+// 🔥 CORE FILTER & STREAMING MANUAL ANTI-CLOSED
 function connectToDropbear(clientConn, fullHeaderBuffer) {
     const sshConn = net.createConnection({ port: SSH_TARGET, host: '127.0.0.1' }, () => {
         sshConn.setNoDelay(true);
 
-        // Cari di mana letak awal string 'SSH-' di dalam tumpukan payload raksasa
+        // 1. Cari & bersihkan seluruh sampah teks payload raksasa
         const reqStr = fullHeaderBuffer.toString('utf8');
         const idxStr = reqStr.indexOf('SSH-');
 
         if (idxStr !== -1) {
-            // Ubah kembali index string ke posisi byte Buffer asli
+            // Ubah index karakter menjadi byte offset asli
             const byteOffset = fullHeaderBuffer.toString('utf8', 0, idxStr).length;
             const cleanSSHData = fullHeaderBuffer.slice(byteOffset);
             
             if (cleanSSHData.length > 0) {
-                sshConn.write(cleanSSHData); // Kirim data bersih ke Dropbear
+                sshConn.write(cleanSSHData); // Kirim paket inisiasi SSH yang bersih ke Dropbear
             }
         }
 
-        // Jalankan pipe murni secara dua arah (Loss tanpa double listener yang bikin crash)
-        clientConn.pipe(sshConn);
-        sshConn.pipe(clientConn);
+        // 2. KUNCI UNTUK MENTOK BANNER: Aliran data manual dua arah tanpa interupsi
+        clientConn.on('data', (data) => {
+            if (sshConn.writable) {
+                sshConn.write(data);
+            }
+        });
+
+        sshConn.on('data', (data) => {
+            if (clientConn.writable) {
+                clientConn.write(data);
+            }
+        });
     });
 
+    // Manajemen penutupan socket agar bersih tidak meninggalkan zombie proses
     sshConn.on('error', () => clientConn.destroy());
     clientConn.on('error', () => sshConn.destroy());
-    clientConn.on('close', () => clientConn.destroy());
-    clientConn.on('end', () => clientConn.end());
     
+    sshConn.on('close', () => clientConn.destroy());
     clientConn.on('close', () => sshConn.destroy());
-    clientConn.on('end', () => sshConn.end());
 }
 
 server.listen(WS_PORT, '127.0.0.1', () => {
