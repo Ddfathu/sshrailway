@@ -1,7 +1,25 @@
 #!/bin/bash
 
+# 🔥 KUNCI UTAMA ANTI SUNEK: Buka limit socket container
 ulimit -n 65535
 ulimit -s unlimited
+
+# =================================================================
+# 🚀 ULTRA TURBO KERNEL TWEAKS (ANTI REKONEK & DAUR ULANG SOCKET) 🚀
+# =================================================================
+echo "[*] Mengoptimalkan antrean socket & pembersihan TIME_WAIT..."
+sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
+sysctl -w net.ipv4.tcp_fin_timeout=15 2>/dev/null
+sysctl -w net.core.default_qdisc=fq 2>/dev/null
+sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
+
+echo "[*] Mengatur ukuran buffer raksasa..."
+sysctl -w net.ipv4.tcp_rmem="4096 8388608 16777216" 2>/dev/null
+sysctl -w net.ipv4.tcp_wmem="4096 8388608 16777216" 2>/dev/null
+sysctl -w net.core.rmem_max=16777216 2>/dev/null
+sysctl -w net.core.wmem_max=16777216 2>/dev/null
+sysctl -w net.core.netdev_max_backlog=50000 2>/dev/null
+sysctl -w net.ipv4.tcp_max_syn_backlog=8192 2>/dev/null
 
 USER_NAME="${SSH_USER:-dd}"
 USER_PASS="${SSH_PASSWORD:-dd}"
@@ -78,15 +96,22 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 
 # --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL 🔥 ---
 
-# 1. Named Tunnel (Argo Token)
+# 1. Named Tunnel (Membaca variabel kustom $CF lu bos)
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
-    cloudflared tunnel run --protocol http2 --token "$CF" > /tmp/named_tunnel.log 2>&1 &
+    cloudflared tunnel run --protocol http2 --region as --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Link Acak TCP)
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
-cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
+# 2. Quick Tunnel (Link Acak TCP Mode Asia)
+echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode Asia)..."
+cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 --region as > /tmp/cloudflared.log 2>&1 &
+
+# 🔥 TAMBAHAN UTAMA: Jalankan Web Dashboard Python di port 8081 (background process)
+echo "[*] Memulai Web Dashboard Panel di Port 8081..."
+python3 index.py &
+
+# Kasih jeda napas biar port ngebinding sempurna sebelum Muxer jalan
+sleep 2
 
 # =================================================================
 
