@@ -14,38 +14,36 @@ const server = net.createServer((clientConn) => {
     // Fungsi utama membaca data payload dari aplikasi VPN di HP
     const handleRawData = (chunk) => {
         if (!isHandshaked) {
-            // Kumpulkan potongan data jika payload di-split oleh operator/aplikasi
+            // Kumpulkan potongan data payload (anti-split)
             headerBuffer = Buffer.concat([headerBuffer, chunk]);
             const reqStr = headerBuffer.toString('utf8');
 
-            // Cek apakah payload HTTP sudah lengkap (ditandai dengan double CRLF)
+            // Cek apakah payload HTTP dari HP sudah lengkap (double CRLF)
             if (reqStr.includes('\r\n\r\n')) {
                 isHandshaked = true;
                 clientConn.removeListener('data', handleRawData); // Cabut listener pencatat header
 
-                // Proses Jabat Tangan WebSocket
-                if (reqStr.toLowerCase().includes('upgrade: websocket') || reqStr.toLowerCase().includes('websocket')) {
-                    const keyRegex = /sec-websocket-key:\s*(.*)\r?\n/i;
-                    const match = reqStr.match(keyRegex);
-                    let wsKey = match ? match[1].trim() : crypto.randomBytes(16).toString('base64');
+                // Ambil Sec-WebSocket-Key jika ada, kalau tidak ada buat key random
+                const keyRegex = /sec-websocket-key:\s*(.*)\r?\n/i;
+                const match = reqStr.match(keyRegex);
+                let wsKey = match ? match[1].trim() : crypto.randomBytes(16).toString('base64');
 
-                    const shasum = crypto.createHash('sha1');
-                    shasum.update(wsKey + WSMagic);
-                    const acceptKey = shasum.digest('base64');
+                const shasum = crypto.createHash('sha1');
+                shasum.update(wsKey + WSMagic);
+                const acceptKey = shasum.digest('base64');
 
-                    const response = "HTTP/1.1 101 Switching Protocols\r\n" +
-                                     "Upgrade: websocket\r\n" +
-                                     "Connection: Upgrade\r\n" +
-                                     "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n";
-                    clientConn.write(response);
-                } else {
-                    clientConn.write("HTTP/1.1 101 Switching Protocols\r\n\r\n");
-                }
+                // 🔥 PERBAIKAN FATAL: Kirim respon HTTP 101 yang SANGAT LENGKAP agar DarkTunnel tidak memutus koneksi
+                const response = "HTTP/1.1 101 Switching Protocols\r\n" +
+                                 "Upgrade: websocket\r\n" +
+                                 "Connection: Upgrade\r\n" +
+                                 "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n";
+                
+                clientConn.write(response);
 
-                // Setelah sukses merespon 101, hubungkan langsung ke Dropbear internal
+                // Hubungkan langsung ke Dropbear internal port 22
                 connectToDropbear(clientConn, headerBuffer);
             } else if (headerBuffer.length > 65536) {
-                // Keamanan: Jika payload sampah kepanjangan banget (>64KB) putuskan rute
+                // Batas aman pelindung memori
                 clientConn.destroy();
             }
         }
@@ -54,26 +52,25 @@ const server = net.createServer((clientConn) => {
     clientConn.on('data', handleRawData);
 });
 
-// 🔥 CORE FILTER & STREAMING MANUAL ANTI-CLOSED
+// 🔥 CORE FILTER FLOW: Memotong sampah payload dan mengalirkan data enkripsi
 function connectToDropbear(clientConn, fullHeaderBuffer) {
     const sshConn = net.createConnection({ port: SSH_TARGET, host: '127.0.0.1' }, () => {
         sshConn.setNoDelay(true);
 
-        // 1. Cari & bersihkan seluruh sampah teks payload raksasa
+        // Cari string 'SSH-' di dalam tumpukan payload
         const reqStr = fullHeaderBuffer.toString('utf8');
         const idxStr = reqStr.indexOf('SSH-');
 
         if (idxStr !== -1) {
-            // Ubah index karakter menjadi byte offset asli
             const byteOffset = fullHeaderBuffer.toString('utf8', 0, idxStr).length;
             const cleanSSHData = fullHeaderBuffer.slice(byteOffset);
             
             if (cleanSSHData.length > 0) {
-                sshConn.write(cleanSSHData); // Kirim paket inisiasi SSH yang bersih ke Dropbear
+                sshConn.write(cleanSSHData); // Kirim data SSH bersih pertama ke Dropbear
             }
         }
 
-        // 2. KUNCI UNTUK MENTOK BANNER: Aliran data manual dua arah tanpa interupsi
+        // Jalankan pertukaran data dua arah secara realtime
         clientConn.on('data', (data) => {
             if (sshConn.writable) {
                 sshConn.write(data);
@@ -87,7 +84,7 @@ function connectToDropbear(clientConn, fullHeaderBuffer) {
         });
     });
 
-    // Manajemen penutupan socket agar bersih tidak meninggalkan zombie proses
+    // Bersihkan socket jika koneksi berakhir
     sshConn.on('error', () => clientConn.destroy());
     clientConn.on('error', () => sshConn.destroy());
     
