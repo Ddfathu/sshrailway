@@ -8,18 +8,25 @@ const SSH_TARGET = 22;
 const server = net.createServer((clientConn) => {
     clientConn.setNoDelay(true);
     
-    // 🔥 TAMBAHAN UTAMA: Pelindung awal agar Mux gak crash kalau client putus sebelum kirim data
+    // Pelindung awal jika client putus mendadak saat nego awal
     clientConn.on('error', (err) => {
-        // Cukup log pelan atau abaikan biar server gak mati
         console.log(`[Mux] Client Early Error: ${err.message}`);
     });
 
-    // Intip data awal
-    clientConn.once('data', (buffer) => {
-        let targetPort = WS_TARGET;
-        let label = "WS-Proxy / Payload";
+    let isRouted = false;
 
+    // Gunakan .on('data') biasa agar semua chunk split tertampung
+    const handleInitialData = (buffer) => {
+        if (isRouted) return;
+        
         if (buffer.length > 0) {
+            isRouted = true;
+            clientConn.removeListener('data', handleInitialData); // Lepas agar tidak double trigger
+
+            let targetPort = WS_TARGET;
+            let label = "WS-Proxy / Payload";
+
+            // Deteksi tipe lalu lintas data
             if (buffer[0] === 0x16) {
                 targetPort = SSL_TARGET;
                 label = "SSL/Stunnel (SNI)";
@@ -27,37 +34,42 @@ const server = net.createServer((clientConn) => {
                 targetPort = SSH_TARGET;
                 label = "Raw Dropbear (Port 22)";
             }
-        }
 
-        console.log(`[Mux] Mengalihkan koneksi ke ${label} pada port ${targetPort}`);
+            console.log(`[Mux] Mengalihkan koneksi ke ${label} pada port ${targetPort}`);
 
-        const backendConn = net.createConnection({ port: targetPort, host: '127.0.0.1' }, () => {
-            backendConn.setNoDelay(true);
-            // Kirim kembali data awal yang tadi diintip ke backend
-            backendConn.write(buffer);
+            const backendConn = net.createConnection({ port: targetPort, host: '127.0.0.1' }, () => {
+                backendConn.setNoDelay(true);
+                
+                // Kirim buffer pertama secara utuh tanpa ada byte yang hilang
+                backendConn.write(buffer);
+                
+                // Buat aliran data manual dua arah langsung aktif secara transparan
+                clientConn.on('data', (data) => {
+                    if (backendConn.writable) backendConn.write(data);
+                });
+
+                backendConn.on('data', (data) => {
+                    if (clientConn.writable) clientConn.write(data);
+                });
+            });
+
+            // Manajemen penutupan socket agar sinkron dan bersih
+            backendConn.on('error', (err) => {
+                console.log(`[Mux] Backend Error: ${err.message}`);
+                clientConn.destroy();
+            });
+
+            clientConn.on('error', (err) => {
+                console.log(`[Mux] Client Stream Error: ${err.message}`);
+                backendConn.destroy();
+            });
             
-            // Pipe data bolak-balik secara loss
-            clientConn.pipe(backendConn);
-            backendConn.pipe(clientConn);
-        });
+            backendConn.on('close', () => clientConn.destroy());
+            clientConn.on('close', () => backendConn.destroy());
+        }
+    };
 
-        // Bersihkan listener error lama dan ganti dengan penanganan saat terhubung
-        clientConn.removeAllListeners('error');
-
-        backendConn.on('error', (err) => {
-            console.log(`[Mux] Backend Error: ${err.message}`);
-            clientConn.destroy();
-        });
-
-        clientConn.on('error', (err) => {
-            console.log(`[Mux] Client Stream Error: ${err.message}`);
-            backendConn.destroy();
-        });
-        
-        // Pastikan kalau salah satu nutup, pasangannya ikut nutup bersih
-        backendConn.on('close', () => clientConn.destroy());
-        clientConn.on('close', () => backendConn.destroy());
-    });
+    clientConn.on('data', handleInitialData);
 });
 
 server.listen(PUBLIC_PORT, '0.0.0.0', () => {
