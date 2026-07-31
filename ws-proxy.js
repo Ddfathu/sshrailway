@@ -23,7 +23,6 @@ function parseHeaders(rawText) {
 
 const server = net.createServer((clientConn) => {
     clientConn.setNoDelay(true);
-    // Optimasi buffer penampung internal 64KB biar gak choking pas speedtest
     clientConn.readableHighWaterMark = 64 * 1024;
     clientConn.writableHighWaterMark = 64 * 1024;
 
@@ -75,18 +74,13 @@ const server = net.createServer((clientConn) => {
             clientConn.write(defaultResp);
         }
 
-        // 🔥 FIX UTAMA: Buka koneksi Dropbear hanya SETELAH respon HTTP 101 sukses dilempar ke client
-        const sshConn = net.createConnection({ 
-            port: SSH_TARGET_PORT, 
-            host: SSH_TARGET_HOST,
-            readableHighWaterMark: 64 * 1024,
-            writableHighWaterMark: 64 * 1024
-        }, () => {
+        // 🔥 KEMBALI KE ALUR STEADY AWAL LU (FIXED RESISTANT)
+        const sshConn = net.createConnection({ port: SSH_TARGET_PORT, host: SSH_TARGET_HOST }, () => {
             sshConn.setNoDelay(true);
 
             let firstPacket = true;
 
-            // Alirkan data dari HP ke Dropbear dengan filter Python
+            // Alirkan data dari HP (Client) ke Dropbear
             clientConn.on('data', (data) => {
                 if (firstPacket) {
                     firstPacket = false;
@@ -95,22 +89,37 @@ const server = net.createServer((clientConn) => {
                     if (dataStr.includes('PATCH') || dataStr.includes('HTTP/')) {
                         if (dataStr.includes('SSH-')) {
                             const idx = data.indexOf('SSH-');
-                            data = data.subarray(idx);
+                            data = data.subarray(idx); 
                         } else {
                             return; 
                         }
                     }
-                    // Paket pertama yang lolos filter langsung diwrite mentah
-                    if (sshConn.writable) sshConn.write(data);
-                    
-                    // 🔥 SELEPAS PAKET PERTAMA LOLOS: Ikat sisa aliran data pake .pipe() otomatis
-                    clientConn.pipe(sshConn);
-                    sshConn.pipe(clientConn);
+                }
+
+                if (sshConn.writable) {
+                    // Cek overload buffer sebelum menulis (Anti-choking manual)
+                    const flush = sshConn.write(data);
+                    if (!flush) {
+                        clientConn.pause();
+                    }
                 }
             });
+
+            // Alirkan balik dari Dropbear ke HP secara stabil
+            sshConn.on('data', (data) => {
+                if (clientConn.writable) {
+                    const flush = clientConn.write(data);
+                    if (!flush) {
+                        sshConn.pause();
+                    }
+                }
+            });
+
+            // Hidupkan kembali aliran jika buffer internal sudah plong
+            sshConn.on('drain', () => clientConn.resume());
+            clientConn.on('drain', () => sshConn.resume());
         });
 
-        // Error & Close handling (Anti-Zombie)
         sshConn.on('error', () => clientConn.destroy());
         clientConn.on('error', () => sshConn.destroy());
         sshConn.on('close', () => clientConn.destroy());
@@ -119,5 +128,5 @@ const server = net.createServer((clientConn) => {
 });
 
 server.listen(WS_PORT, '0.0.0.0', () => {
-    console.log(`[WS Engine JS] Turbo Active on 0.0.0.0:${WS_PORT}`);
+    console.log(`[WS Engine JS] Fixed Resistant Active on Port ${WS_PORT}`);
 });
