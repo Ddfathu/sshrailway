@@ -362,7 +362,7 @@ const server = http.createServer((req, res) => {
                 <div class="url-section" style="border-color: #f43f5e;">
                     <div class="url-title" style="color: #fb7185;">Server SNI/Stunnel SNI MURNI</div>
                     <div class="url-box" id="railway-url" style="color: #f43f5e;">Loading...</div>
-                    <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY ALAMAT TCP PROXY</button>
+                    <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY SERVER SSH SNI/STUNNEL</button>
                 </div>
 
                 <div class="url-section">
