@@ -6,12 +6,8 @@ const WS_TARGET = parseInt(process.env.WS_TARGET_PORT || '8880');
 const SSH_TARGET = 22;
 
 const server = net.createServer((clientConn) => {
-    // 🚀 Jalur bebas hambatan tanpa delay
+    // 🚀 Loss tanpa delay, langsung bypass socket
     clientConn.setNoDelay(true);
-    
-    // Alokasi memori buffer raksasa 64KB agar tidak macet saat speedtest
-    clientConn.readableHighWaterMark = 64 * 1024;
-    clientConn.writableHighWaterMark = 64 * 1024;
 
     let isRouted = false;
 
@@ -24,31 +20,38 @@ const server = net.createServer((clientConn) => {
 
             let targetPort = WS_TARGET;
 
-            // Filter byte awal jabat tangan
+            // Filter byte awal jabat tangan bawaan lu
             if (buffer[0] === 0x16) {
                 targetPort = SSL_TARGET;
             } else if (buffer.toString('utf8', 0, 4) === 'SSH-') {
                 targetPort = SSH_TARGET;
             }
 
-            // Tembak langsung ke target internal port
+            // Tembak langsung ke target internal port dengan mode manual kilat
             const backendConn = net.createConnection({ 
                 port: targetPort, 
-                host: '127.0.0.1',
-                readableHighWaterMark: 64 * 1024,
-                writableHighWaterMark: 64 * 1024
+                host: '127.0.0.1' 
             }, () => {
                 backendConn.setNoDelay(true);
                 
-                // Tulis data pembuka
+                // Tulis paket jabat tangan pertama
                 backendConn.write(buffer);
-                
-                // 🔥 Pipe otomatis dua arah bawaan core Node.js (Anti-Rekonek)
-                clientConn.pipe(backendConn);
-                backendConn.pipe(clientConn);
+
+                // 🔥 BALIK KE MODE LOSS MANUAL (Tanpa pipa rem otomatis)
+                clientConn.on('data', (data) => {
+                    if (backendConn.writable) {
+                        backendConn.write(data);
+                    }
+                });
+
+                backendConn.on('data', (data) => {
+                    if (clientConn.writable) {
+                        clientConn.write(data);
+                    }
+                });
             });
 
-            // Manajemen error transparan biar gak crash
+            // Manajemen error biar tetep aman ga zombie
             backendConn.on('error', () => clientConn.destroy());
             clientConn.on('error', () => backendConn.destroy());
             backendConn.on('close', () => clientConn.destroy());
@@ -60,5 +63,5 @@ const server = net.createServer((clientConn) => {
 });
 
 server.listen(PUBLIC_PORT, '0.0.0.0', () => {
-    console.log(`[Mux JS] Turbo Speed Engine Active on Port ${PUBLIC_PORT}`);
+    console.log(`[Mux JS] Raw Express Loss Engine Active on Port ${PUBLIC_PORT}`);
 });
