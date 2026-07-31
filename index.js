@@ -49,8 +49,8 @@ function getCurrentHosts() {
     
     let hostOutput = "";
     if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (Argo)`;
-    if (process.env.RLWY_PROXY) hostOutput += ` / ${process.env.RLWY_PROXY} (Railway TCP)`;
-    if (!hostOutput) hostOutput = quickUrl;
+    if (process.env.RLWY_PROXY) hostOutput += ` / ${process.env.RLWY_PROXY.replace(/https?:\/\//, '')} (Server SNI)`;
+    if (!hostOutput) hostOutput = quickUrl.replace(/https?:\/\//, '');
     
     return hostOutput;
 }
@@ -338,7 +338,7 @@ const server = http.createServer((req, res) => {
                 </div>
 
                 <div class="url-section" style="border-color: #f43f5e;">
-                    <div class="url-title" style="color: #fb7185;">2. Railway TCP Proxy (Jalur Muxer Utama)</div>
+                    <div class="url-title" style="color: #fb7185;">2. Server SNI</div>
                     <div class="url-box" id="railway-url" style="color: #f43f5e;">Loading...</div>
                     <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY ALAMAT TCP PROXY</button>
                 </div>
@@ -403,6 +403,12 @@ const server = http.createServer((req, res) => {
                     } catch(e) { alert("Gagal terhubung ke API Login"); }
                 }
 
+                // Fungsi pembersih URL aman tanpa merusak template literal script asli
+                function cleanUrlText(txt) {
+                    if(!txt) return "";
+                    return String(txt).replace(/^https?:\/\//i, '').replace(/\/$/, '');
+                }
+
                 async function updateStats() {
                     try {
                         let res = await fetch('/api/stats');
@@ -412,9 +418,11 @@ const server = http.createServer((req, res) => {
                         document.getElementById('disk').innerText = data.disk_usage;
                         document.getElementById('uptime').innerText = data.uptime;
                         document.getElementById('ssh').innerText = "👥 " + data.ssh_online + " Users";
-                        document.getElementById('named-url').innerText = data.named_url;
-                        document.getElementById('railway-url').innerText = data.railway_url;
-                        document.getElementById('quick-url').innerText = data.quick_url;
+                        
+                        // Membersihkan prefix https:// langsung saat dimuat ke box layar UI
+                        document.getElementById('named-url').innerText = cleanUrlText(data.named_url);
+                        document.getElementById('railway-url').innerText = cleanUrlText(data.railway_url);
+                        document.getElementById('quick-url').innerText = cleanUrlText(data.quick_url);
                     } catch(e) { console.log(e); }
                 }
 
