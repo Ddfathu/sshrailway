@@ -95,7 +95,7 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 
 # --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL 🔥 ---
 
-# 1. Named Tunnel (Membaca variabel kustom $D dari Railway)
+# 1. Named Tunnel (Membaca Token dari variabel $CF)
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
     cloudflared tunnel run --protocol http2 --region as --token "$CF" > /tmp/named_tunnel.log 2>&1 &
@@ -107,33 +107,33 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 --regio
 
 
 # =================================================================
-# 🔥 BACKGROUND HARDWARE TRACKER LOOP (SUPPLIER RAW DATA INDEX.PY)
+# 🔥 BACKGROUND HARDWARE TRACKER LOOP (SUPPLIER DATA KUSTOM VARIABEL D)
 # =================================================================
 echo "[*] Memulai background loop pemantau hardware server..."
 (
     while true; do
-        # 1. Mengambil Spesifikasi CPU
+        # 1. Spesifikasi CPU
         CPU_MODEL=$(lscpu | grep 'Model name' | cut -d':' -f2 | sed -e 's/^[ \t]*//')
         [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/procinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
         [ -z "$CPU_MODEL" ] && CPU_MODEL="Railway Virtual CPU"
 
-        # 2. Mengambil Informasi Kapasitas RAM
+        # 2. Informasi RAM
         RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
         RAM_USED=$(free -h | awk '/Mem:/ {print $3}')
 
-        # 3. Mengambil Informasi Disk Penyimpanan (Root)
+        # 3. Disk Penyimpanan Root
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
 
-        # 4. Mengambil Data Durasi Aktif Server
+        # 4. Durasi Aktif Uptime
         UPTIME=$(uptime -p | sed 's/up //')
 
-        # 5. Menghitung Jumlah Sesi Koneksi Aktif User Dropbear
+        # 5. Jumlah Sesi Koneksi User Online
         SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
 
-        # 6. Menangkap Konfigurasi Custom Domain dari Env Railway
-        CUSTOM_DOM="${DOMAIN_UTAMA:-}"
+        # 6. Tangkap Domain Utama Kustom dari Variabel $D lu bos!
+        CUSTOM_DOM="${D:-}"
 
-        # Ekspor rapi ke format berkas JSON /tmp/server_stats.json agar di-consume index.py
+        # Ekspor rapi ke file JSON target agar dibaca index.py
         cat <<EOF > /tmp/server_stats.json
 {
   "cpu_model": "$CPU_MODEL",
@@ -149,11 +149,11 @@ EOF
     done
 ) &
 
-# 🔥 JALANKAN WEB DASHBOARD PANEL PYTHON DI PORT 8081 (BACKGROUND PROCESS)
+# 🔥 JALANKAN WEB DASHBOARD PANEL PYTHON DI PORT 8081 (BACKGROUND)
 echo "[*] Memulai Web Dashboard Panel di Port 8081..."
 python3 index.py &
 
-# Jeda penyeimbang agar rute internal dan loopback mengunci sempurna
+# Jeda penyeimbang agar port internal beres binding sempurna
 sleep 2
 
 # =================================================================
