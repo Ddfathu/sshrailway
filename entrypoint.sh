@@ -34,7 +34,6 @@ cat << 'EOF' > /etc/dropbear_banner
 EOF
 
 echo "[*] Memulai Dropbear Server di Port Lokal 22..."
-# -W 65536 = Sinkronisasi buffer raksasa
 /usr/sbin/dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -W 65536
 sleep 1 
 
@@ -58,7 +57,6 @@ export WS_PORT="$WS_INTERNAL_PORT"
 node ws-proxy.js &
 
 # --- 🔥 UTAMA: JALANKAN BADVPN UDPGW UNTUK GAME MODE 🔥 ---
-# Mencoba mendeteksi lokasi binary udpgw baik di /usr/local/bin atau /app
 if [ -f /usr/local/bin/badvpn-udpgw ]; then
     echo "[*] Memulai BadVPN udpgw di Port Lokal 7300..."
     /usr/local/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 500 --max-connections-for-client 20 &
@@ -89,7 +87,7 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
 cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
-# 🔥 DATA SUPPLIER LOOP BUAT INDEX.PY (BIAR GRAFIKNYA NYALA LIVE)
+# 🔥 DATA SUPPLIER LOOP BUAT INDEX.PY
 # =================================================================
 (
     while true; do
@@ -103,8 +101,9 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         UPTIME=$(uptime -p | sed 's/up //')
         SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
         
-        # Masukkan domain kustom dari variabel D lu bos
         CUSTOM_DOM="${D:-}"
+        # Meneruskan info TCP Proxy dari env Railway
+        RLWY_DOM="${RLWY_PROXY:-}"
 
         cat <<EOF > /tmp/server_stats.json
 {
@@ -114,7 +113,8 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
   "disk_usage": "$DISK_USAGE",
   "uptime": "$UPTIME",
   "ssh_online": "$SSH_ONLINE",
-  "custom_domain": "$CUSTOM_DOM"
+  "custom_domain": "$CUSTOM_DOM",
+  "railway_proxy": "$RLWY_DOM"
 }
 EOF
         sleep 2
@@ -128,7 +128,6 @@ python3 index.py &
 sleep 2
 
 # =================================================================
-
 echo "[*] Memulai Muxer Utama (JavaScript)..."
 export PORT="$PUBLIC_PORT"
 export SSL_TARGET_PORT="$SSL_INTERNAL_PORT"
