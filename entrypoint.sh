@@ -120,16 +120,13 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
         UPTIME=$(uptime -p | sed 's/up //')
         
-        # 🔎 ENGINE PELACAK TERAKURAT: Hitung koneksi established yang nembak port Dropbear lokal (22)
-        # Trik ini gak bakal ketipu limit container karena membaca status file deskriptor network
+        # Hitung koneksi established yang nembak port Dropbear lokal (22)
         COUNT_ONLINE=$(cat /proc/net/tcp 2>/dev/null | grep -i '0100007F:0016' | wc -l)
         
         USER_DETAILS_LIST=""
         if [ "$COUNT_ONLINE" -gt 0 ]; then
-            # Ambil database user aktif kustom dari server
             RAW_USER_LIST=$(cat /etc/passwd | awk -F: '$3>=1000 {print $1}' | grep -v -E 'nobody|ubuntu')
             for u in $RAW_USER_LIST; do
-                # Validasi apakah user tersebut memiliki kecocokan sesi login internal aktif
                 if ps aux | grep -i "$u" | grep -v grep &>/dev/null; then
                     USER_DETAILS_LIST="${USER_DETAILS_LIST}👤 User Active: ${u}\\n"
                 fi
@@ -167,9 +164,10 @@ EOF
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
 node index.js &
 
-# 🌟 JALANKAN CORE SERVER VMESS DI PORT 8082
+# 🌟 JALANKAN CORE SERVER VMESS DI PORT LOKAL ISOLASI 8082 
+# (Dipaksa lewat inline env SERVER_PORT agar tidak merebut port publik milik muxer)
 echo "[*] Memulai Xray Core Server VMess di Port 8082..."
-node vmess.js &
+SERVER_PORT=8082 PORT=8082 node vmess.js &
 
 sleep 2
 
