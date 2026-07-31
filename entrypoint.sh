@@ -46,9 +46,13 @@ echo "$USER_NAME:$USER_PASS" | chpasswd
 echo "[*] Membuat Banner Dropbear..."
 cat << 'EOF' > /etc/dropbear_banner
 ==================================================
-              👑 SELAMAT MENIKMATI 👑  
+              💃 SELAMAT MENIKMATI 🕺 <br>
+              🥳SSH SERVER PAAS RAILWAY😍 <br>
+ 
  🔹 MULTIPLEXER : NODE.JS JAVASCRIPT ENGINE  
- 🔹 OS PLATFORM : UBUNTU (ANTI-HMAC BUG)  
+ <br>
+ 🔹 OS PLATFORM : UBUNTU 
+ <br>
  🔹 SSH SERVICE : DROPBEAR ENHANCED BUFFER  
 ==================================================
 EOF
