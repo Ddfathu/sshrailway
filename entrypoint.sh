@@ -107,7 +107,7 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
 cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
-# 🔥 DATA SUPPLIER LOOP VERSI INTELIJEN (LIVE MONITORING BYPASS INTER-PROCESS)
+# 🔥 DATA SUPPLIER LOOP VERSI ANTI-BUNTET (100% LOLOS LIMIT CONTAINER)
 # =================================================================
 (
     while true; do
@@ -120,33 +120,22 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
         UPTIME=$(uptime -p | sed 's/up //')
         
-        # 🔎 ENGINE PELACAK USER ONLINE (Mengidentifikasi koneksi aktif yang masuk ke port Dropbear 22)
-        # Langkah 1: Ambil semua PID proses anak Dropbear yang melayani client aktif
-        DROPBEAR_PIDS=$(ps aux | grep '/usr/sbin/dropbear' | grep -v grep | awk '{print $2}')
+        # 🔎 CARA AMAN: Hitung session pts aktif milik user kustom di Ubuntu via perintah ps
+        COUNT_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
         
-        COUNT_ONLINE=0
         USER_DETAILS_LIST=""
-
-        # Langkah 2: Iterasi setiap PID untuk mencari tahu siapa pemilik username dan dari IP lokal mana ia ditransfer
-        for pid in $DROPBEAR_PIDS; do
-            # Cari baris socket connection di port 22 yang menggunakan PID ini
-            SOCKET_INFO=$(ss -tnp 2>/dev/null | grep "pid=$pid,")
-            if [ -n "$SOCKET_INFO" ]; then
-                # Dapatkan username pemilik proses PID tersebut
-                V_USER=$(ps -o user= -p "$pid" | sed -e 's/^[ \t]*//')
-                
-                # Saring agar user sistem bawaan seperti root/nobody tidak ikut terhitung
-                if [ -n "$V_USER" ] && [ "$V_USER" != "root" ] && [ "$V_USER" != "nobody" ]; then
-                    # Tangkap port asal koneksi internal (untuk pelacakan silang ke mux.js jika diperlukan)
-                    SRC_PORT=$(echo "$SOCKET_INFO" | awk '{print $4}' | cut -d':' -f2)
-                    
-                    USER_DETAILS_LIST="${USER_DETAILS_LIST}👤 User: ${V_USER} | 🌐 Port: ${SRC_PORT}\\n"
-                    COUNT_ONLINE=$((COUNT_ONLINE + 1))
+        if [ "$COUNT_ONLINE" -gt 0 ]; then
+            # Mengambil daftar nama user aktif yang beneran terikat ke proses dropbear
+            # Menggunakan skema pencarian inter-proses ps untuk menghindari crash data
+            RAW_USERS=$(ps -eo user,cmd | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | awk '{print $1}' | sort -u)
+            for u in $RAW_USERS; do
+                if [ "$u" != "root" ] && [ "$u" != "nobody" ]; then
+                    USER_DETAILS_LIST="${USER_DETAILS_LIST}👤 User Active: ${u}\\n"
                 fi
-            fi
-        done
+            done
+        fi
 
-        if [ -z "$USER_DETAILS_LIST" ] || [ "$COUNT_ONLINE" -eq 0 ]; then
+        if [ -z "$USER_DETAILS_LIST" ]; then
             USER_DETAILS_LIST="Semua user offline"
             SSH_ONLINE="0 Users"
         else
@@ -156,6 +145,7 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         CUSTOM_DOM="${D:-}"
         RLWY_DOM="${RLWY_PROXY:-}"
 
+        # Membuat struktur berkas JSON rapi tanpa ada celah string jebakan
         cat <<EOF > /tmp/server_stats.json
 {
   "cpu_model": "$CPU_MODEL",
