@@ -98,20 +98,21 @@ sleep 2
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL MURNI BAWAN LU 🔥 ---
+# --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL MURNI UPDATE 🔥 ---
 
-# 1. Named Tunnel (Argo Token)
+# 1. Named Tunnel (Argo Token Mode) dengan Fitur TLS Passthrough Bypass
 if [ -n "$CF" ]; then
-    echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
-    cloudflared tunnel run --protocol http2 --token "$CF" > /tmp/named_tunnel.log 2>&1 &
+    echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode -> Port 8080)..."
+    cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Link Acak TCP)
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
-cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
+# 2. Quick Tunnel (Link Acak HTTP Mode Resmi Port 80/443)
+# Menggunakan skema http agar dapet port resmi Cloudflare global untuk bypass payload split
+echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak HTTP Mode)..."
+cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
-# 🔥 DATA SUPPLIER LOOP BUAT INDEX.PY
+# 🔥 DATA SUPPLIER LOOP BUAT MONITORING PANEL
 # =================================================================
 (
     while true; do
@@ -144,8 +145,8 @@ EOF
     done
 ) &
 
-# 🔥 JALANKAN WEB DASHBOARD PANEL PYTHON DI PORT 8081
-echo "[*] Memulai Web Dashboard Panel di Port 8081..."
+# 🔥 JALANKAN WEB DASHBOARD PANEL NODE.JS DI PORT 8081
+echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
 node index.js &
 
 sleep 2
