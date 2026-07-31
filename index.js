@@ -49,7 +49,15 @@ function getCurrentHosts() {
     
     let hostOutput = "";
     if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (gunakan url ini untuk server ssh websocket)`;
-    if (process.env.SNI) hostOutput += ` dan ${process.env.SNI.replace(/https?:\/\//, '')} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
+    
+    // 🔥 OTOMATISASI TCP PROXY UNTUK STRUK AKUN
+    if (process.env.RAILWAY_TCP_PROXY_DOMAIN && process.env.RAILWAY_TCP_PROXY_PORT) {
+        const autoTcp = `${process.env.RAILWAY_TCP_PROXY_DOMAIN}:${process.env.RAILWAY_TCP_PROXY_PORT}`;
+        hostOutput += hostOutput ? ` dan ${autoTcp} (gunakan url dan port ini untuk SSH SNI murni stunnel)` : `${autoTcp} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
+    } else if (process.env.SNI) {
+        hostOutput += ` dan ${process.env.SNI.replace(/https?:\/\//, '')} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
+    }
+    
     if (!hostOutput) hostOutput = quickUrl.replace(/https?:\/\//, '');
     
     return hostOutput;
@@ -229,7 +237,13 @@ const server = http.createServer((req, res) => {
             namedUrl = process.env.D.replace(/https?:\/\//i, '').replace(/\/$/, ''); // Saring Named Tunnel dari https://
         }
         
-        let rlwyUrl = process.env.SNI ? process.env.SNI.replace(/https?:\/\//i, '').replace(/\/$/, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
+        // 🔥 OTOMATISASI TCP PROXY UNTUK STATS DASHBOARD UI
+        let rlwyUrl = "Tidak Aktif (TCP Proxy Belum Ditambah)";
+        if (process.env.RAILWAY_TCP_PROXY_DOMAIN && process.env.RAILWAY_TCP_PROXY_PORT) {
+            rlwyUrl = `${process.env.RAILWAY_TCP_PROXY_DOMAIN}:${process.env.RAILWAY_TCP_PROXY_PORT}`;
+        } else if (process.env.SNI) {
+            rlwyUrl = process.env.SNI.replace(/https?:\/\//i, '').replace(/\/$/, '');
+        }
         
         // Membersihkan teks duplikat di backend agar info dari entrypoint.sh gak bertabrakan
         let cleanOnlineStr = String(hwInfo.ssh_online).replace(/👥/g, '').replace(/Active/g, '').replace(/Users/g, '').trim();
@@ -420,7 +434,6 @@ const server = http.createServer((req, res) => {
                         document.getElementById('disk').innerText = data.disk_usage;
                         document.getElementById('uptime').innerText = data.uptime;
                         
-                        // Menampilkan info jumlah user dan list IP/User aktif secara presisi tanpa tumpang tindih teks
                         let detailActiveList = data.user_list_details || "Semua user offline";
                         document.getElementById('ssh').innerHTML = "👥 " + data.ssh_online + " Users Active<br><span style='font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;'>" + detailActiveList + "</span>";
                         
