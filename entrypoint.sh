@@ -45,17 +45,18 @@ echo "$USER_NAME:$USER_PASS" | chpasswd
 
 echo "[*] Membuat Banner Dropbear..."
 cat << 'EOF' > /etc/dropbear_banner
-<center><font color="yellow">==================================================</font></center>
-<center><font color="#00FF00">👑 SELAMAT MENIKMATI 👑</font></center>
-<center><font color="#00FFFF">🥳 SSH SERVER PAAS RAILWAY 🥳</font></center>
+<center><font color="#FF0000">==================================================</font></center><br>
+<center><font color="#00FF00">👑 SELAMAT MENIKMATI 👑</font></center><br>
+<center><font color="#00FFFF">🥳 SSH SERVER PAAS RAILWAY 🥳</font></center><br>
 <br>
-<font color="orange"> 🔹 MULTIPLEXER :</font> <font color="white">NODE.JS JAVASCRIPT ENGINE</font><br>
-<font color="orange"> 🔹 OS PLATFORM :</font> <font color="white">UBUNTU</font><br>
-<font color="orange"> 🔹 SSH SERVICE :</font> <font color="white">DROPBEAR ENHANCED BUFFER</font><br>
-<center><font color="yellow">==================================================</font></center>
-<center><font color="gold">powered by : d e d e f a t h u</font></center>
-<center><font color="yellow">==================================================</font></center>
+<font color="#FFA500"> 🔹 MULTIPLEXER :</font> <font color="#FFFF00">NODE.JS JAVASCRIPT ENGINE</font><br>
+<font color="#00FF00"> 🔹 OS PLATFORM :</font> <font color="#00FFFF">UBUNTU</font><br>
+<font color="#0000FF"> 🔹 SSH SERVICE :</font> <font color="#9B59B6">DROPBEAR ENHANCED BUFFER</font><br>
+<center><font color="#FF0000">==================================================</font></center><br>
+<center><font color="#FFD700">powered by : d e d e f a t h u</font></center><br>
+<center><font color="#FF0000">==================================================</font></center>
 EOF
+
 
 
 echo "[*] Memulai Dropbear Server di Port Lokal 22..."
