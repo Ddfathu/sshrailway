@@ -94,17 +94,17 @@ sleep 2
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI TUNNEL (FINAL FIXED) 🔥 ---
+# --- 🔥 PUSAT EKSEKUSI TUNNEL 🔥 ---
 
-# 1. Named Tunnel (Argo Token Mode) + Bypass TLS Verifikasi Lokal
+# 1. Named Tunnel (Argo Token Mode)
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
     cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Link Acak TCP Mode Loss Payload)
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
-cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
+# 2. Quick Tunnel (BALIK KE MODE HTTP BIAR SUBDOMAIN ACAK KELUAR TEPAT SASARAN)
+echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak Engine)..."
+cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
 # 🔥 DATA SUPPLIER LOOP VERSI INTELIJEN SAKTI (PORT CONNECTION TRACKER)
@@ -112,7 +112,7 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
 (
     while true; do
         CPU_MODEL=$(lscpu | grep 'Model name' | cut -d':' -f2 | sed -e 's/^[ \t]*//')
-        [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
+        [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/procinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
         [ -z "$CPU_MODEL" ] && CPU_MODEL="Railway Virtual CPU"
 
         RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
@@ -120,7 +120,7 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
         UPTIME=$(uptime -p | sed 's/up //')
         
-        # 🔎 ENGINE PELACAK TERAKURAT: Hitung koneksi established yang nembak port Dropbear lokal (22)
+        # Hitung koneksi established ke port Dropbear lokal (22)
         COUNT_ONLINE=$(cat /proc/net/tcp 2>/dev/null | grep -i '0100007F:0016' | wc -l)
         
         USER_DETAILS_LIST=""
