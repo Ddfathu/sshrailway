@@ -1,0 +1,20 @@
+{
+  "name": "nodejs",
+  "version": "1.0.0",
+  "description": "This is a node project",
+  "main": "vmess.js",
+  "author": "",
+  "repository": "",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "dev": "node vmess.js",
+    "start": "node vmess.js"
+  },
+  "dependencies": {
+    "axios": "latest"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}
