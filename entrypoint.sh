@@ -144,7 +144,7 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel..."
         fi
 
         CUSTOM_DOM="${D:-}"
-        RLWY_DOM="${RLWY_PROXY:-}"
+        RLWY_DOM="${SNI:-}"
 
         cat <<EOF > /tmp/server_stats.json
 {
@@ -166,7 +166,7 @@ EOF
 # 🔥 JALANKAN WEB DASHBOARD PANEL NODE.JS DI PORT 8081
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
 export D="${D}"
-export RLWY_PROXY="${RLWY_PROXY}"
+export SNI="${SNI}"
 node index.js &
 
 sleep 2
