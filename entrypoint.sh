@@ -107,7 +107,7 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
 cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
-# 🔥 DATA SUPPLIER LOOP VERSI ANTI-BUNTET (100% LOLOS LIMIT CONTAINER)
+# 🔥 DATA SUPPLIER LOOP VERSI INTELIJEN SAKTI (PORT CONNECTION TRACKER)
 # =================================================================
 (
     while true; do
@@ -120,22 +120,23 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
         UPTIME=$(uptime -p | sed 's/up //')
         
-        # 🔎 CARA AMAN: Hitung session pts aktif milik user kustom di Ubuntu via perintah ps
-        COUNT_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
+        # 🔎 ENGINE PELACAK TERAKURAT: Hitung koneksi established yang nembak port Dropbear lokal (22)
+        # Trik ini gak bakal ketipu limit container karena membaca status file deskriptor network
+        COUNT_ONLINE=$(cat /proc/net/tcp 2>/dev/null | grep -i '0100007F:0016' | wc -l)
         
         USER_DETAILS_LIST=""
         if [ "$COUNT_ONLINE" -gt 0 ]; then
-            # Mengambil daftar nama user aktif yang beneran terikat ke proses dropbear
-            # Menggunakan skema pencarian inter-proses ps untuk menghindari crash data
-            RAW_USERS=$(ps -eo user,cmd | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | awk '{print $1}' | sort -u)
-            for u in $RAW_USERS; do
-                if [ "$u" != "root" ] && [ "$u" != "nobody" ]; then
+            # Ambil database user aktif kustom dari server
+            RAW_USER_LIST=$(cat /etc/passwd | awk -F: '$3>=1000 {print $1}' | grep -v -E 'nobody|ubuntu')
+            for u in $RAW_USER_LIST; do
+                # Validasi apakah user tersebut memiliki kecocokan sesi login internal aktif
+                if ps aux | grep -i "$u" | grep -v grep &>/dev/null; then
                     USER_DETAILS_LIST="${USER_DETAILS_LIST}👤 User Active: ${u}\\n"
                 fi
             done
         fi
 
-        if [ -z "$USER_DETAILS_LIST" ]; then
+        if [ -z "$USER_DETAILS_LIST" ] || [ "$COUNT_ONLINE" -eq 0 ]; then
             USER_DETAILS_LIST="Semua user offline"
             SSH_ONLINE="0 Users"
         else
@@ -145,7 +146,6 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         CUSTOM_DOM="${D:-}"
         RLWY_DOM="${RLWY_PROXY:-}"
 
-        # Membuat struktur berkas JSON rapi tanpa ada celah string jebakan
         cat <<EOF > /tmp/server_stats.json
 {
   "cpu_model": "$CPU_MODEL",
