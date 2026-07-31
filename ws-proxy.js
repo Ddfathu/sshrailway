@@ -6,7 +6,6 @@ const SSH_TARGET_HOST = '127.0.0.1';
 const SSH_TARGET_PORT = 22;
 const WSMagic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-// Fungsi pembantu untuk memparsing header seperti Python
 function parseHeaders(rawText) {
     const headers = {};
     const lines = rawText.split("\r\n");
@@ -24,6 +23,9 @@ function parseHeaders(rawText) {
 
 const server = net.createServer((clientConn) => {
     clientConn.setNoDelay(true);
+    // Optimasi buffer penampung internal 64KB biar gak choking pas speedtest
+    clientConn.readableHighWaterMark = 64 * 1024;
+    clientConn.writableHighWaterMark = 64 * 1024;
 
     clientConn.once('data', (rawHeaders) => {
         if (!rawHeaders || rawHeaders.length === 0) {
@@ -38,7 +40,6 @@ const server = net.createServer((clientConn) => {
         const isWsUpgrade = rawTextLower.includes('upgrade: websocket') || headers['upgrade'] === 'websocket';
 
         if (isWsUpgrade) {
-            // Cari WebSocket Key
             let wsKey = headers['sec-websocket-key'];
             if (!wsKey && rawTextLower.includes('sec-websocket-key:')) {
                 const lines = rawText.split("\r\n");
@@ -58,13 +59,11 @@ const server = net.createServer((clientConn) => {
             shasum.update(wsKey + WSMagic);
             const acceptKey = shasum.digest('base64');
 
-            // Susun respon HTTP 101 sakti
             let response = "HTTP/1.1 101 Switching Protocols\r\n" +
                              "Upgrade: websocket\r\n" +
                              "Connection: Upgrade\r\n" +
                              `Sec-WebSocket-Accept: ${acceptKey}\r\n`;
             
-            // 🔥 KUNCI UTAMA: Kembalikan protokol WebSocket jika diminta oleh DarkTunnel
             if (headers['sec-websocket-protocol']) {
                 response += `Sec-WebSocket-Protocol: ${headers['sec-websocket-protocol']}\r\n`;
             }
@@ -72,48 +71,46 @@ const server = net.createServer((clientConn) => {
             
             clientConn.write(response);
         } else {
-            // Default response bawaan env
             const defaultResp = process.env.WS_RESPONSE || "HTTP/1.1 101 Switching Protocols\r\n\r\n";
             clientConn.write(defaultResp);
         }
 
-        // TEPAT SETELAH 101 DIKIRIM: Buka koneksi ke Dropbear (Persis alur Python)
-        const sshConn = net.createConnection({ port: SSH_TARGET_PORT, host: SSH_TARGET_HOST }, () => {
+        // 🔥 FIX UTAMA: Buka koneksi Dropbear hanya SETELAH respon HTTP 101 sukses dilempar ke client
+        const sshConn = net.createConnection({ 
+            port: SSH_TARGET_PORT, 
+            host: SSH_TARGET_HOST,
+            readableHighWaterMark: 64 * 1024,
+            writableHighWaterMark: 64 * 1024
+        }, () => {
             sshConn.setNoDelay(true);
 
             let firstPacket = true;
 
-            // Alirkan data dari HP (Client) ke Dropbear dengan filter badak Python
+            // Alirkan data dari HP ke Dropbear dengan filter Python
             clientConn.on('data', (data) => {
                 if (firstPacket) {
                     firstPacket = false;
                     const dataStr = data.toString('utf8');
                     
-                    // Cek jika paket awal setelah 101 membawa ampas teks PATCH/HTTP mentah
                     if (dataStr.includes('PATCH') || dataStr.includes('HTTP/')) {
                         if (dataStr.includes('SSH-')) {
                             const idx = data.indexOf('SSH-');
-                            data = data.subarray(idx); // Potong, sisakan data SSH murni
+                            data = data.subarray(idx);
                         } else {
-                            return; // Buang data sampah mentah, tunggu paket selanjutnya
+                            return; 
                         }
                     }
-                }
-
-                if (sshConn.writable) {
-                    sshConn.write(data);
-                }
-            });
-
-            // Alirkan balik dari Dropbear ke HP secara loss
-            sshConn.on('data', (data) => {
-                if (clientConn.writable) {
-                    clientConn.write(data);
+                    // Paket pertama yang lolos filter langsung diwrite mentah
+                    if (sshConn.writable) sshConn.write(data);
+                    
+                    // 🔥 SELEPAS PAKET PERTAMA LOLOS: Ikat sisa aliran data pake .pipe() otomatis
+                    clientConn.pipe(sshConn);
+                    sshConn.pipe(clientConn);
                 }
             });
         });
 
-        // Error & Close handling agar tidak zombie
+        // Error & Close handling (Anti-Zombie)
         sshConn.on('error', () => clientConn.destroy());
         clientConn.on('error', () => sshConn.destroy());
         sshConn.on('close', () => clientConn.destroy());
@@ -122,5 +119,5 @@ const server = net.createServer((clientConn) => {
 });
 
 server.listen(WS_PORT, '0.0.0.0', () => {
-    console.log(`[WS Engine JS] Active on 0.0.0.0:${WS_PORT} -> Matching Dropbear Python Logic`);
+    console.log(`[WS Engine JS] Turbo Active on 0.0.0.0:${WS_PORT}`);
 });
