@@ -76,7 +76,7 @@ sleep 2
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL 🔥 ---
+# --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL MURNI BAWAN LU 🔥 ---
 
 # 1. Named Tunnel (Argo Token)
 if [ -n "$CF" ]; then
@@ -87,6 +87,45 @@ fi
 # 2. Quick Tunnel (Link Acak TCP)
 echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
 cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
+
+# =================================================================
+# 🔥 DATA SUPPLIER LOOP BUAT INDEX.PY (BIAR GRAFIKNYA NYALA LIVE)
+# =================================================================
+(
+    while true; do
+        CPU_MODEL=$(lscpu | grep 'Model name' | cut -d':' -f2 | sed -e 's/^[ \t]*//')
+        [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
+        [ -z "$CPU_MODEL" ] && CPU_MODEL="Railway Virtual CPU"
+
+        RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
+        RAM_USED=$(free -h | awk '/Mem:/ {print $3}')
+        DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
+        UPTIME=$(uptime -p | sed 's/up //')
+        SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
+        
+        # Masukkan domain kustom dari variabel D lu bos
+        CUSTOM_DOM="${D:-}"
+
+        cat <<EOF > /tmp/server_stats.json
+{
+  "cpu_model": "$CPU_MODEL",
+  "ram_total": "$RAM_TOTAL",
+  "ram_used": "$RAM_USED",
+  "disk_usage": "$DISK_USAGE",
+  "uptime": "$UPTIME",
+  "ssh_online": "$SSH_ONLINE",
+  "custom_domain": "$CUSTOM_DOM"
+}
+EOF
+        sleep 2
+    done
+) &
+
+# 🔥 JALANKAN WEB DASHBOARD PANEL PYTHON DI PORT 8081
+echo "[*] Memulai Web Dashboard Panel di Port 8081..."
+python3 index.py &
+
+sleep 2
 
 # =================================================================
 
