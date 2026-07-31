@@ -57,8 +57,6 @@ cat << 'EOF' > /etc/dropbear_banner
 <center><font color="#FF0000">==================================================</font></center>
 EOF
 
-
-
 echo "[*] Memulai Dropbear Server di Port Lokal 22..."
 /usr/sbin/dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -W 65536
 sleep 1 
@@ -147,6 +145,11 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel..."
 
         CUSTOM_DOM="${D:-}"
         RLWY_DOM="${SNI:-}"
+        
+        # 🌟 LOGIKA CERDAS: Isi statistik json dengan proxy otomatis Railway jika tersedia
+        if [ -n "$RAILWAY_TCP_PROXY_DOMAIN" ] && [ -n "$RAILWAY_TCP_PROXY_PORT" ]; then
+            RLWY_DOM="${RAILWAY_TCP_PROXY_DOMAIN}:${RAILWAY_TCP_PROXY_PORT}"
+        fi
 
         cat <<EOF > /tmp/server_stats.json
 {
@@ -169,6 +172,9 @@ EOF
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
 export D="${D}"
 export SNI="${SNI}"
+# 🔥 NANEM OTOMATIS: Loloskan variabel TCP internal Railway ke process.env Node.js global
+export RAILWAY_TCP_PROXY_DOMAIN="${RAILWAY_TCP_PROXY_DOMAIN}"
+export RAILWAY_TCP_PROXY_PORT="${RAILWAY_TCP_PROXY_PORT}"
 node index.js &
 
 sleep 2
