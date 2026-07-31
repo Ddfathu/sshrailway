@@ -74,7 +74,7 @@ stunnel4 /etc/stunnel/stunnel.conf
 
 echo "[*] Memulai WS-Proxy (JavaScript)..."
 export WS_PORT="$WS_INTERNAL_PORT"
-node ws-proxy.js &
+node /app/ws-proxy.js &
 
 # --- 🔥 UTAMA: JALANKAN BADVPN UDPGW UNTUK GAME MODE 🔥 ---
 if [ -f /usr/local/bin/badvpn-udpgw ]; then
@@ -90,25 +90,16 @@ fi
 
 sleep 2
 
-# Download binary cloudflared resmi
+# Download binary cloudflared resmi untuk Muxer SSH
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI TUNNEL DUAL-TOKEN ENGINE (ANTI-BENTROK) 🔥 ---
-
-# Rute 1: Token Utama ($CF) -> Mengamankan Jalur SSH Muxer Utama (Port Publik Container)
+# --- 🔥 PUSAT EKSEKUSI TUNNEL MUXER SSH (PORT UTAMA CONTAiNER) 🔥 ---
 if [ -n "$CF" ]; then
-    echo "[*] Menjalankan Cloudflare Named Tunnel 1 (Muxer SSH Mode)..."
+    echo "[*] Menjalankan Cloudflare Named Tunnel (Muxer SSH Mode)..."
     cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# Rute 2: Token Kedua ($CF2) -> Mengamankan Jalur Core VMess / Zero Trust (Port 8001)
-if [ -n "$CF2" ]; then
-    echo "[*] Menjalankan Cloudflare Named Tunnel 2 (Core Xray VMess Mode di Port 8001)..."
-    cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF2" > /tmp/named_tunnel2.log 2>&1 &
-fi
-
-# Rute 3: Quick Tunnel Cadangan (Link Acak Bumper Bawaan Port Muxer)
 echo "[*] Menjalankan Cloudflare Quick Tunnel Cadangan..."
 cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
@@ -126,7 +117,6 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
         UPTIME=$(uptime -p | sed 's/up //')
         
-        # Hitung koneksi established yang nembak port Dropbear lokal (22)
         COUNT_ONLINE=$(cat /proc/net/tcp 2>/dev/null | grep -i '0100007F:0016' | wc -l)
         
         USER_DETAILS_LIST=""
@@ -168,16 +158,19 @@ EOF
 
 # 🔥 JALANKAN WEB DASHBOARD PANEL NODE.JS DI PORT 8081
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
-node index.js &
+node /app/index.js &
 
-# 🌟 JALANKAN CORE SERVER VMESS DI PORT LOKAL ISOLASI 8082 
-echo "[*] Memulai Xray Core Server VMess di Port 8082..."
-SERVER_PORT=8082 PORT=8082 node vmess.js &
+# 🌟 FIX MUTLAK PAKE LOGIKA LU: Pindah ke direktori /app, paksa ARGO_PORT=8001 di level bash env!
+# Biar vmess.js nge-boot core Xray-nya tepat sasaran di port 8001 publik container!
+echo "[*] Memulai Xray Core Server VMess (vmess.js)..."
+cd /app
+SERVER_PORT=8082 PORT=8082 ARGO_PORT=8001 node vmess.js &
 
 sleep 2
 
 # =================================================================
 echo "[*] Memulai Muxer Utama (JavaScript)..."
+cd /app
 export PORT="$PUBLIC_PORT"
 export SSL_TARGET_PORT="$SSL_INTERNAL_PORT"
 export WS_TARGET_PORT="$WS_INTERNAL_PORT"
