@@ -49,7 +49,7 @@ function getCurrentHosts() {
     
     let hostOutput = "";
     if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (gunakan url ini untuk server ssh websocket)`;
-    if (process.env.RLWY_PROXY) hostOutput += ` dan ${process.env.RLWY_PROXY.replace(/https?:\/\//, '')} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
+    if (process.env.SNI) hostOutput += ` dan ${process.env.SNI.replace(/https?:\/\//, '')} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
     if (!hostOutput) hostOutput = quickUrl.replace(/https?:\/\//, '');
     
     return hostOutput;
@@ -229,7 +229,7 @@ const server = http.createServer((req, res) => {
             namedUrl = process.env.D.replace(/https?:\/\//i, '').replace(/\/$/, ''); // Saring Named Tunnel dari https://
         }
         
-        let rlwyUrl = process.env.RLWY_PROXY ? process.env.RLWY_PROXY.replace(/https?:\/\//i, '').replace(/\/$/, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
+        let rlwyUrl = process.env.SNI ? process.env.SNI.replace(/https?:\/\//i, '').replace(/\/$/, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
         
         // Membersihkan teks duplikat di backend agar info dari entrypoint.sh gak bertabrakan
         let cleanOnlineStr = String(hwInfo.ssh_online).replace(/👥/g, '').replace(/Active/g, '').replace(/Users/g, '').trim();
