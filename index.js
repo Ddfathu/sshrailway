@@ -40,7 +40,7 @@ function getCurrentHosts() {
     if (fs.existsSync(LOG_PATH)) {
         try {
             const logContent = fs.readFileSync(LOG_PATH, 'utf8');
-            const match = logContent.match(/https:\/\/([a-zA-Z0-9-]+\.trycloudflare\.com)/);
+            const match = logContent.match(/https?:\/\/([a-zA-Z0-9-]+\.trycloudflare\.com)/);
             if (match) {
                 quickUrl = match[1];
             }
@@ -49,8 +49,8 @@ function getCurrentHosts() {
     
     let hostOutput = "";
     if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (Argo)`;
-    if (process.env.RLWY_PROXY) hostOutput += ` / ${process.env.RLWY_PROXY} (Railway TCP)`;
-    if (!hostOutput) hostOutput = quickUrl;
+    if (process.env.RLWY_PROXY) hostOutput += ` / ${process.env.RLWY_PROXY.replace(/https?:\/\//, '')} (Server SNI)`;
+    if (!hostOutput) hostOutput = quickUrl.replace(/https?:\/\//, '');
     
     return hostOutput;
 }
@@ -65,7 +65,7 @@ function listSsh() {
         
         for (let line of lines) {
             if (!line.trim()) continue;
-            const parts = line.strip ? line.strip().split(':') : line.split(':');
+            const parts = line.split(':');
             const username = parts[0];
             const uid = parseInt(parts[2], 10);
             const shell = parts[parts.length - 1];
@@ -96,7 +96,6 @@ function addSsh(username, password, ipAddr, userAgent) {
     }
     
     try {
-        // FIX UBUNTU: Menggunakan sintaks useradd & chpasswd bawaan Ubuntu
         execSync(`useradd -m -s /bin/bash ${username}`);
         execSync(`echo '${username}:${password}' | chpasswd`);
         
@@ -132,7 +131,6 @@ function deleteSsh(username) {
         return { status: "error", message: "Username wajib diisi!" };
     }
     try {
-        // FIX UBUNTU: Menggunakan userdel -r bawaan Ubuntu agar bersih beserta direktorinya
         execSync(`userdel -r ${username}`);
         
         const dbInfo = loadDb();
@@ -155,7 +153,6 @@ const server = http.createServer((req, res) => {
     const ipAddr = req.headers['cf-connecting-ip'] || req.socket.remoteAddress || "Unknown IP";
     const userAgent = req.headers['user-agent'] || "Unknown UA";
     
-    // Set Header CORS Global agar API lancar
     res.setHeader('Access-Control-Allow-Origin', '*');
     
     if (pathName === '/api/logtunnel') {
@@ -212,7 +209,7 @@ const server = http.createServer((req, res) => {
     if (pathName === '/api/stats') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         let quickUrl = "Menunggu Quick Tunnel siap...";
-        let hwInfo = { cpu_model: "Loading...", ram_total: "0", ram_used: "0", disk_usage: "0%", uptime: "0", ssh_online: "0", custom_domain: "", railway_proxy: "" };
+        let hwInfo = { cpu_model: "Loading...", ram_total: "0", ram_used: "0", disk_usage: "0%", uptime: "0", ssh_online: "0 Users", user_list_details: "Semua user offline", custom_domain: "", railway_proxy: "" };
         
         if (fs.existsSync(STATS_PATH)) {
             try {
@@ -222,17 +219,17 @@ const server = http.createServer((req, res) => {
         if (fs.existsSync(LOG_PATH)) {
             try {
                 const logContent = fs.readFileSync(LOG_PATH, 'utf8');
-                const match = logContent.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
-                if (match) quickUrl = match[0];
+                const match = logContent.match(/https?:\/\/([a-zA-Z0-9-]+\.trycloudflare\.com)/);
+                if (match) quickUrl = match[1];
             } catch (e) {}
         }
         
         let namedUrl = "Tidak Aktif (Token Kosong)";
         if (process.env.CF && process.env.D) {
-            namedUrl = "https://" + process.env.D.replace(/https?:\/\//, '');
+            namedUrl = process.env.D.replace(/https?:\/\//, '');
         }
         
-        let rlwyUrl = process.env.RLWY_PROXY || "Tidak Aktif (TCP Proxy Belum Ditambah)";
+        let rlwyUrl = process.env.RLWY_PROXY ? process.env.RLWY_PROXY.replace(/https?:\/\//, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
         
         const responseData = { quick_url: quickUrl, named_url: namedUrl, railway_url: rlwyUrl, status: "ONLINE", ...hwInfo };
         res.end(JSON.stringify(responseData));
@@ -305,7 +302,7 @@ const server = http.createServer((req, res) => {
                     <div class="stat-card"><div class="stat-title">RAM Used / Total</div><div class="stat-value" id="ram">Loading...</div></div>
                     <div class="stat-card"><div class="stat-title">Disk Usage (/)</div><div class="stat-value" id="disk">Loading...</div></div>
                     <div class="stat-card"><div class="stat-title">Server Uptime</div><div class="stat-value" id="uptime" style="font-size:12px;">Loading...</div></div>
-                    <div class="stat-card" style="border-color: #a855f7;"><div class="stat-title" style="color:#d8b4fe;">SSH Online Users</div><div class="stat-value" id="ssh" style="font-size:18px; color:#a855f7;">👥 0 Users</div></div>
+                    <div class="stat-card" style="border-color: #a855f7;"><div class="stat-title" style="color:#d8b4fe;">SSH Online Users</div><div class="stat-value" id="ssh" style="font-size:14px; color:#a855f7; line-height: 1.3;">Loading Users...</div></div>
                 </div>
 
                 <div class="ssh-manager">
@@ -338,7 +335,7 @@ const server = http.createServer((req, res) => {
                 </div>
 
                 <div class="url-section" style="border-color: #f43f5e;">
-                    <div class="url-title" style="color: #fb7185;">2. Railway TCP Proxy (Jalur Muxer Utama)</div>
+                    <div class="url-title" style="color: #fb7185;">2. Server SNI</div>
                     <div class="url-box" id="railway-url" style="color: #f43f5e;">Loading...</div>
                     <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY ALAMAT TCP PROXY</button>
                 </div>
@@ -403,6 +400,11 @@ const server = http.createServer((req, res) => {
                     } catch(e) { alert("Gagal terhubung ke API Login"); }
                 }
 
+                function cleanUrl(urlStr) {
+                    if(!urlStr) return "";
+                    return urlStr.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+                }
+
                 async function updateStats() {
                     try {
                         let res = await fetch('/api/stats');
@@ -411,10 +413,13 @@ const server = http.createServer((req, res) => {
                         document.getElementById('ram').innerText = data.ram_used + " / " + data.ram_total;
                         document.getElementById('disk').innerText = data.disk_usage;
                         document.getElementById('uptime').innerText = data.uptime;
-                        document.getElementById('ssh').innerText = "👥 " + data.ssh_online + " Users";
-                        document.getElementById('named-url').innerText = data.named_url;
-                        document.getElementById('railway-url').innerText = data.railway_url;
-                        document.getElementById('quick-url').innerText = data.quick_url;
+                        
+                        document.getElementById('ssh').innerHTML = \`\${data.ssh_online}<br><span style="font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;">\${data.user_list_details || 'Semua user offline'}</span>\`;
+                        
+                        // Menghilangkan https:// langsung di tampilan box UI frontend
+                        document.getElementById('named-url').innerText = cleanUrl(data.named_url);
+                        document.getElementById('railway-url').innerText = cleanUrl(data.railway_url);
+                        document.getElementById('quick-url').innerText = cleanUrl(data.quick_url);
                     } catch(e) { console.log(e); }
                 }
 
