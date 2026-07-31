@@ -1,7 +1,31 @@
 #!/bin/bash
 
+# 🔥 KUNCI UTAMA ANTI SUNEK: Buka limit socket container sedalam mungkin
 ulimit -n 65535
 ulimit -s unlimited
+
+# =================================================================
+# 🚀 ULTRA TURBO KERNEL TWEAKS (ANTI REKONEK & DAUR ULANG SOCKET) 🚀
+# =================================================================
+echo "[*] Mengoptimalkan antrean socket & pembersihan TIME_WAIT..."
+# Memaksa OS mendaur ulang soket TIME_WAIT secepat mungkin untuk koneksi baru
+sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
+# Mempercepat pemutusan soket mati dari 60 detik menjadi 15 detik
+sysctl -w net.ipv4.tcp_fin_timeout=15 2>/dev/null
+# Mengaktifkan antrean Fair Queueing (FQ) untuk kestabilan ping
+sysctl -w net.core.default_qdisc=fq 2>/dev/null
+# Mengaktifkan algoritma BBR bawaan Linux (Bikin speedtest auto rata kanan)
+sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
+
+echo "[*] Mengatur ukuran buffer raksasa agar tidak tersedak..."
+sysctl -w net.ipv4.tcp_rmem="4096 8388608 16777216" 2>/dev/null
+sysctl -w net.ipv4.tcp_wmem="4096 8388608 16777216" 2>/dev/null
+sysctl -w net.core.rmem_max=16777216 2>/dev/null
+sysctl -w net.core.wmem_max=16777216 2>/dev/null
+sysctl -w net.core.netdev_max_backlog=50000 2>/dev/null
+sysctl -w net.ipv4.tcp_max_syn_backlog=8192 2>/dev/null
+
+# =================================================================
 
 USER_NAME="${SSH_USER:-dd}"
 USER_PASS="${SSH_PASSWORD:-dd}"
@@ -102,7 +126,6 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/
         SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
         
         CUSTOM_DOM="${D:-}"
-        # Meneruskan info TCP Proxy dari env Railway
         RLWY_DOM="${RLWY_PROXY:-}"
 
         cat <<EOF > /tmp/server_stats.json
