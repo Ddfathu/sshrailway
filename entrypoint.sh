@@ -141,7 +141,7 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
         fi
 
         CUSTOM_DOM="${D:-}"
-        RLWY_DOM="${RLWY_PROXY:-}"
+        SNI="${RLWY_PROXY:-}"
 
         cat <<EOF > /tmp/server_stats.json
 {
@@ -153,7 +153,7 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
   "ssh_online": "👥 $SSH_ONLINE Active",
   "user_list_details": "$USER_DETAILS_LIST",
   "custom_domain": "$CUSTOM_DOM",
-  "railway_proxy": "$RLWY_DOM"
+  "railway_proxy": "$SNI"
 }
 EOF
         sleep 2
