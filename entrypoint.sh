@@ -96,13 +96,13 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 
 # --- 🔥 PUSAT EKSEKUSI TUNNEL 🔥 ---
 
-# 1. Named Tunnel (Argo Token Mode) + Bypass TLS Verifikasi Lokal
+# 1. Named Tunnel (Argo Token Mode)
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
     cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Mode HTTP standard agar log link acak keluar normal)
+# 2. Quick Tunnel (Kembalikan ke mode HTTP standard agar link acak keluar normal)
 echo "[*] Menjalankan Cloudflare Quick Tunnel..."
 cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
@@ -139,9 +139,8 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
             SSH_ONLINE="${COUNT_ONLINE} Users"
         fi
 
-        # 🌟 DIBANJIRIN DISINI: Satukan semua kemungkinan key penamaan untuk variabel domain $D
         CUSTOM_DOM="${D:-}"
-        RLWY_DOM="${SNI:-}"
+        RLWY_DOM="${RLWY_PROXY:-}"
 
         cat <<EOF > /tmp/server_stats.json
 {
@@ -153,9 +152,6 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
   "ssh_online": "👥 $SSH_ONLINE Active",
   "user_list_details": "$USER_DETAILS_LIST",
   "custom_domain": "$CUSTOM_DOM",
-  "server_sni": "$CUSTOM_DOM",
-  "tcp_proxy": "$CUSTOM_DOM",
-  "sni": "$CUSTOM_DOM",
   "railway_proxy": "$RLWY_DOM"
 }
 EOF
@@ -165,6 +161,9 @@ EOF
 
 # 🔥 JALANKAN WEB DASHBOARD PANEL NODE.JS DI PORT 8081
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
+# 🌟 SINKRONISASI AKTIF: Paksa export variabel D dan RLWY_PROXY agar terbaca mutlak oleh index.js!
+export D="${D}"
+export RLWY_PROXY="${RLWY_PROXY}"
 node index.js &
 
 sleep 2
