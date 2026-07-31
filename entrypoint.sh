@@ -96,9 +96,9 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 # --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL 🔥 ---
 
 # 1. Named Tunnel (Membaca variabel kustom $D dari Railway)
-if [ -n "$D" ]; then
+if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
-    cloudflared tunnel run --protocol http2 --region as --token "$D" > /tmp/named_tunnel.log 2>&1 &
+    cloudflared tunnel run --protocol http2 --region as --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
 # 2. Quick Tunnel (Link Acak TCP Mode Asia)
