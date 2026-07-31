@@ -48,7 +48,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     username = parts[0]
                     uid = int(parts[2])
                     shell = parts[-1]
-                    # FIX UBUNTU: Mengabaikan user bawaan Ubuntu dan Dropbear system
+                    # FIX UBUNTU: Mengabaikan user bawaan sistem Ubuntu, Stunnel, dan Dropbear
                     if uid >= 1000 and username not in ["nobody", "ubuntu", "sshd", "dropbear", "stunnel"]:
                         extra = db_info.get(username, {"password": "-", "ip": "Unknown", "user_agent": "Unknown"})
                         users.append({
@@ -62,16 +62,10 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             return {"status": "error", "message": str(e)}
 
     def get_current_hosts(self):
+        # 🔥 FIX: Membaca domain kustom langsung dari variabel D sesuai instruksi Anda
+        named_url = os.getenv("D", "")
         quick_url = "Menunggu Quick Tunnel..."
-        named_url = ""
-        if os.path.exists(STATS_PATH):
-            try:
-                with open(STATS_PATH, "r") as f:
-                    hw_info = json.load(f)
-                    if hw_info.get("custom_domain"):
-                        named_url = hw_info["custom_domain"].replace("https://", "").replace("http://", "")
-            except Exception:
-                pass
+        
         if os.path.exists(LOG_PATH):
             try:
                 with open(LOG_PATH, "r") as f:
@@ -86,12 +80,12 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         if not username or not password:
             return {"status": "error", "message": "Username dan password wajib diisi!"}
         
-        # Validasi keamanan input username
+        # Validasi keamanan format nama user
         if not re.match(r"^[a-zA-Z0-9_-]+$", username):
             return {"status": "error", "message": "Username mengandung karakter ilegal!"}
 
         try:
-            # FIX UBUNTU: Menggunakan useradd bawaan Debian/Ubuntu basis
+            # FIX UBUNTU: Menggunakan sintaks useradd bawaan Ubuntu
             cmd_user = f"useradd -m -s /bin/bash {username}"
             subprocess.run(cmd_user, shell=True, check=True)
             cmd_pass = f"echo '{username}:{password}' | chpasswd"
@@ -130,7 +124,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         if not username:
             return {"status": "error", "message": "Username wajib diisi!"}
         try:
-            # FIX UBUNTU: Menggunakan userdel -r (menghapus user beserta home directory miliknya secara bersih)
+            # FIX UBUNTU: Menggunakan userdel -r bawaan Ubuntu agar bersih beserta direktorinya
             cmd_del = f"userdel -r {username}"
             subprocess.run(cmd_del, shell=True, check=True)
             
@@ -240,9 +234,13 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                             quick_url = match.group(0)
                 except Exception:
                     pass
+            
+            # 🔥 FIX: Validasi status Named Tunnel dengan mengecek kecocokan token CF dan isi Domain D
             named_url = "Tidak Aktif (Token Kosong)"
-            if hw_info.get("custom_domain"):
-                named_url = "https://" + hw_info["custom_domain"].replace("https://", "").replace("http://", "")
+            custom_domain_val = os.getenv("D", "")
+            if os.getenv("CF") and custom_domain_val:
+                named_url = "https://" + custom_domain_val.replace("https://", "").replace("http://", "")
+                
             response_data = {"quick_url": quick_url, "named_url": named_url, "status": status, **hw_info}
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
             return
