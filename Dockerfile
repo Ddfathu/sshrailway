@@ -47,18 +47,20 @@ RUN chmod +x /usr/local/bin/badvpn-udpgw
 
 WORKDIR /app
 
-# Salin seluruh source code JavaScript (mux.js, ws-proxy.js, entrypoint.sh) ke container
+# Salin seluruh source code JavaScript (mux.js, ws-proxy.js, vmess.js, index.js, entrypoint.sh) ke container
 COPY . .
 
-# Install dependencies Node.js
-RUN npm init -y && npm install ws 2>/dev/null || true
+# Install dependencies Node.js (ws untuk proxy utama, axios untuk vmess.js)
+RUN npm install --production 2>/dev/null || (npm init -y && npm install ws axios 2>/dev/null)
 
 RUN mkdir -p /var/run/sshd /var/run/stunnel4 /etc/stunnel
 
 # Siapkan entrypoint
 RUN cp entrypoint.sh /entrypoint.sh && chmod +x /entrypoint.sh
 
+# --- 🚀 DAFTAR PORT SERVICE AKTIF 🚀 ---
 EXPOSE 8080
 EXPOSE 8081
+EXPOSE 8082
 
 ENTRYPOINT ["/entrypoint.sh"]
