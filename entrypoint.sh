@@ -146,7 +146,7 @@ EOF
 
 # 🔥 JALANKAN WEB DASHBOARD PANEL PYTHON DI PORT 8081
 echo "[*] Memulai Web Dashboard Panel di Port 8081..."
-python3 index.py &
+node index.js &
 
 sleep 2
 
