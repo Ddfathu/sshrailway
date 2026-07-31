@@ -1,2 +1,0 @@
-/trojan-argo
-/trojan-worry
