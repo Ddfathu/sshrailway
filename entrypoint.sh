@@ -94,16 +94,22 @@ sleep 2
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI TUNNEL (FINAL FIXED) 🔥 ---
+# --- 🔥 PUSAT EKSEKUSI TUNNEL DUAL-TOKEN ENGINE (ANTI-BENTROK) 🔥 ---
 
-# 1. Named Tunnel (Argo Token Mode) + Bypass TLS Verifikasi Lokal
+# Rute 1: Token Utama ($CF) -> Mengamankan Jalur SSH Muxer Utama (Port Publik Container)
 if [ -n "$CF" ]; then
-    echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
+    echo "[*] Menjalankan Cloudflare Named Tunnel 1 (Muxer SSH Mode)..."
     cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Link Acak TCP Mode Loss Payload)
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
+# Rute 2: Token Kedua ($CF2) -> Mengamankan Jalur Core VMess / Zero Trust (Port 8001)
+if [ -n "$CF2" ]; then
+    echo "[*] Menjalankan Cloudflare Named Tunnel 2 (Core Xray VMess Mode di Port 8001)..."
+    cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF2" > /tmp/named_tunnel2.log 2>&1 &
+fi
+
+# Rute 3: Quick Tunnel Cadangan (Link Acak Bumper Bawaan Port Muxer)
+echo "[*] Menjalankan Cloudflare Quick Tunnel Cadangan..."
 cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
@@ -165,7 +171,6 @@ echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
 node index.js &
 
 # 🌟 JALANKAN CORE SERVER VMESS DI PORT LOKAL ISOLASI 8082 
-# (Dipaksa lewat inline env SERVER_PORT agar tidak merebut port publik milik muxer)
 echo "[*] Memulai Xray Core Server VMess di Port 8082..."
 SERVER_PORT=8082 PORT=8082 node vmess.js &
 
