@@ -1,25 +1,7 @@
 #!/bin/bash
 
-# 🔥 KUNCI UTAMA ANTI SUNEK: Buka limit socket container
 ulimit -n 65535
 ulimit -s unlimited
-
-# =================================================================
-# 🚀 ULTRA TURBO KERNEL TWEAKS (ANTI REKONEK & DAUR ULANG SOCKET) 🚀
-# =================================================================
-echo "[*] Mengoptimalkan antrean socket & pembersihan TIME_WAIT..."
-sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
-sysctl -w net.ipv4.tcp_fin_timeout=15 2>/dev/null
-sysctl -w net.core.default_qdisc=fq 2>/dev/null
-sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
-
-echo "[*] Mengatur ukuran buffer raksasa..."
-sysctl -w net.ipv4.tcp_rmem="4096 8388608 16777216" 2>/dev/null
-sysctl -w net.ipv4.tcp_wmem="4096 8388608 16777216" 2>/dev/null
-sysctl -w net.core.rmem_max=16777216 2>/dev/null
-sysctl -w net.core.wmem_max=16777216 2>/dev/null
-sysctl -w net.core.netdev_max_backlog=50000 2>/dev/null
-sysctl -w net.ipv4.tcp_max_syn_backlog=8192 2>/dev/null
 
 USER_NAME="${SSH_USER:-dd}"
 USER_PASS="${SSH_PASSWORD:-dd}"
@@ -52,6 +34,7 @@ cat << 'EOF' > /etc/dropbear_banner
 EOF
 
 echo "[*] Memulai Dropbear Server di Port Lokal 22..."
+# -W 65536 = Sinkronisasi buffer raksasa
 /usr/sbin/dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -W 65536
 sleep 1 
 
@@ -75,6 +58,7 @@ export WS_PORT="$WS_INTERNAL_PORT"
 node ws-proxy.js &
 
 # --- 🔥 UTAMA: JALANKAN BADVPN UDPGW UNTUK GAME MODE 🔥 ---
+# Mencoba mendeteksi lokasi binary udpgw baik di /usr/local/bin atau /app
 if [ -f /usr/local/bin/badvpn-udpgw ]; then
     echo "[*] Memulai BadVPN udpgw di Port Lokal 7300..."
     /usr/local/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 500 --max-connections-for-client 20 &
@@ -94,59 +78,18 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 
 # --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL 🔥 ---
 
-# 1. Named Tunnel (🔥 FIX UTAMA: Wajib pakai '--protocol tcp' agar Argo Token mau terhubung!)
+# 1. Named Tunnel (Argo Token)
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
-    cloudflared tunnel run --protocol tcp --region as --token "$CF" > /tmp/named_tunnel.log 2>&1 &
+    cloudflared tunnel run --protocol http2 --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Link Acak TCP Mode Asia)
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode Asia)..."
-cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol tcp --region as > /tmp/cloudflared.log 2>&1 &
-
-
-# =================================================================
-# 🔥 BACKGROUND HARDWARE TRACKER LOOP (SUPPLIER DATA KUSTOM VARIABEL D)
-# =================================================================
-echo "[*] Memulai background loop pemantau hardware server..."
-(
-    while true; do
-        CPU_MODEL=$(lscpu | grep 'Model name' | cut -d':' -f2 | sed -e 's/^[ \t]*//')
-        [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/procinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
-        [ -z "$CPU_MODEL" ] && CPU_MODEL="Railway Virtual CPU"
-
-        RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
-        RAM_USED=$(free -h | awk '/Mem:/ {print $3}')
-        DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
-        UPTIME=$(uptime -p | sed 's/up //')
-        SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
-        CUSTOM_DOM="${D:-}"
-
-        cat <<EOF > /tmp/server_stats.json
-{
-  "cpu_model": "$CPU_MODEL",
-  "ram_total": "$RAM_TOTAL",
-  "ram_used": "$RAM_USED",
-  "disk_usage": "$DISK_USAGE",
-  "uptime": "$UPTIME",
-  "ssh_online": "$SSH_ONLINE",
-  "custom_domain": "$CUSTOM_DOM"
-}
-EOF
-        sleep 2
-    done
-) &
-
-# 🔥 JALANKAN WEB DASHBOARD PANEL PYTHON DI PORT 8081 (BACKGROUND)
-echo "[*] Memulai Web Dashboard Panel di Port 8081..."
-python3 index.py &
-
-# Jeda penyeimbang agar port internal beres binding sempurna
-sleep 2
+# 2. Quick Tunnel (Link Acak TCP)
+echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
+cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
-# 👑 EKSEKUSI ENGINE MUX UTAMA JAVASCRIPT
-# =================================================================
+
 echo "[*] Memulai Muxer Utama (JavaScript)..."
 export PORT="$PUBLIC_PORT"
 export SSL_TARGET_PORT="$SSL_INTERNAL_PORT"
