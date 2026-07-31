@@ -128,9 +128,10 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel..."
         
         USER_DETAILS_LIST=""
         if [ "$COUNT_ONLINE" -gt 0 ]; then
-            RAW_USER_LIST=$(cat /etc/passwd | awk -F: '$3>=1000 {print $1}' | grep -v -E 'nobody|ubuntu')
+            RAW_USER_LIST=$(cat /etc/passwd | awk -F: '$3>=1000 {print $1}' | grep -v -E 'nobody|ubuntu|sshd|dropbear|stunnel')
             for u in $RAW_USER_LIST; do
-                if ps aux | grep -i "$u" | grep -v grep &>/dev/null; then
+                # 🔥 FIX PRESET & LOCK USER SECARA MUTLAK (Anti ketuker dd dan dd12)
+                if pgrep -u "$u" &>/dev/null; then
                     USER_DETAILS_LIST="${USER_DETAILS_LIST}👤 User Active: ${u}\\n"
                 fi
             done
@@ -138,9 +139,9 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel..."
 
         if [ -z "$USER_DETAILS_LIST" ] || [ "$COUNT_ONLINE" -eq 0 ]; then
             USER_DETAILS_LIST="Semua user offline"
-            SSH_ONLINE="0 Users"
+            SSH_ONLINE="0 Koneksi"
         else
-            SSH_ONLINE="${COUNT_ONLINE} Users"
+            SSH_ONLINE="${COUNT_ONLINE} Koneksi"
         fi
 
         CUSTOM_DOM="${D:-}"
