@@ -96,14 +96,14 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 
 # --- 🔥 PUSAT EKSEKUSI TUNNEL 🔥 ---
 
-# 1. Named Tunnel (Argo Token Mode)
+# 1. Named Tunnel (Argo Token Mode) + Bypass TLS Verifikasi Lokal
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
     cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (BALIK KE MODE HTTP BIAR SUBDOMAIN ACAK KELUAR TEPAT SASARAN)
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak Engine)..."
+# 2. Quick Tunnel (Mode HTTP standard agar log link acak keluar normal)
+echo "[*] Menjalankan Cloudflare Quick Tunnel..."
 cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
@@ -112,7 +112,7 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
 (
     while true; do
         CPU_MODEL=$(lscpu | grep 'Model name' | cut -d':' -f2 | sed -e 's/^[ \t]*//')
-        [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/procinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
+        [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
         [ -z "$CPU_MODEL" ] && CPU_MODEL="Railway Virtual CPU"
 
         RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
@@ -120,7 +120,6 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
         UPTIME=$(uptime -p | sed 's/up //')
         
-        # Hitung koneksi established ke port Dropbear lokal (22)
         COUNT_ONLINE=$(cat /proc/net/tcp 2>/dev/null | grep -i '0100007F:0016' | wc -l)
         
         USER_DETAILS_LIST=""
@@ -140,6 +139,7 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
             SSH_ONLINE="${COUNT_ONLINE} Users"
         fi
 
+        # 🌟 DIBANJIRIN DISINI: Satukan semua kemungkinan key penamaan untuk variabel domain $D
         CUSTOM_DOM="${D:-}"
         RLWY_DOM="${SNI:-}"
 
@@ -153,6 +153,9 @@ cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp
   "ssh_online": "👥 $SSH_ONLINE Active",
   "user_list_details": "$USER_DETAILS_LIST",
   "custom_domain": "$CUSTOM_DOM",
+  "server_sni": "$CUSTOM_DOM",
+  "tcp_proxy": "$CUSTOM_DOM",
+  "sni": "$CUSTOM_DOM",
   "railway_proxy": "$RLWY_DOM"
 }
 EOF
