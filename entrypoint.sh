@@ -8,13 +8,9 @@ ulimit -s unlimited
 # 🚀 ULTRA TURBO KERNEL TWEAKS (ANTI REKONEK & DAUR ULANG SOCKET) 🚀
 # =================================================================
 echo "[*] Mengoptimalkan antrean socket & pembersihan TIME_WAIT..."
-# Memaksa OS mendaur ulang soket TIME_WAIT secepat mungkin untuk koneksi baru
 sysctl -w net.ipv4.tcp_tw_reuse=1 2>/dev/null
-# Mempercepat pemutusan soket mati dari 60 detik menjadi 15 detik
 sysctl -w net.ipv4.tcp_fin_timeout=15 2>/dev/null
-# Mengaktifkan antrean Fair Queueing (FQ) untuk kestabilan ping
 sysctl -w net.core.default_qdisc=fq 2>/dev/null
-# Mengaktifkan algoritma BBR bawaan Linux (Bikin speedtest auto rata kanan)
 sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null
 
 echo "[*] Mengatur ukuran buffer raksasa agar tidak tersedak..."
@@ -98,18 +94,19 @@ sleep 2
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL MURNI UPDATE 🔥 ---
+# --- 🔥 PUSAT EKSEKUSI TUNNEL FIX SAKTI 🔥 ---
 
-# 1. Named Tunnel (Argo Token Mode) dengan Fitur TLS Passthrough Bypass
+# 1. Named Tunnel (Argo Token Mode) + Bypass TLS Verifikasi Lokal
 if [ -n "$CF" ]; then
-    echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode -> Port 8080)..."
+    echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
     cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Link Acak HTTP Mode Resmi Port 80/443)
-# Menggunakan skema http agar dapet port resmi Cloudflare global untuk bypass payload split
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak HTTP Mode)..."
-cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
+# 2. 🔥 FIX UTAMA QUICK TUNNEL MODE HTTPS (PORT 443 RESMI) 🔥
+# Kita tembak langsung ke HTTPS lokal Stunnel dan matikan verifikasi TLS lokal.
+# Ini biar Cloudflare Edge membuka port 443 resmi secara publik yang support SNI bug lu!
+echo "[*] Menjalankan Cloudflare Quick Tunnel (Jalur HTTPS Port 443)..."
+cloudflared tunnel --url "https://127.0.0.1:$SSL_INTERNAL_PORT" --protocol http2 --no-tls-verify > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
 # 🔥 DATA SUPPLIER LOOP BUAT MONITORING PANEL
