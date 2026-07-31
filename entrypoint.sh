@@ -45,17 +45,18 @@ echo "$USER_NAME:$USER_PASS" | chpasswd
 
 echo "[*] Membuat Banner Dropbear..."
 cat << 'EOF' > /etc/dropbear_banner
-==================================================
-              💃 SELAMAT MENIKMATI 🕺 <br>
-              🥳SSH SERVER PAAS RAILWAY😍 <br>
- 
- 🔹 MULTIPLEXER : NODE.JS JAVASCRIPT ENGINE  
- <br>
- 🔹 OS PLATFORM : UBUNTU 
- <br>
- 🔹 SSH SERVICE : DROPBEAR ENHANCED BUFFER  
-==================================================
+<center><font color="yellow">==================================================</font></center>
+<center><font color="#00FF00">👑 SELAMAT MENIKMATI 👑</font></center>
+<center><font color="#00FFFF">🥳 SSH SERVER PAAS RAILWAY 🥳</font></center>
+<br>
+<font color="orange"> 🔹 MULTIPLEXER :</font> <font color="white">NODE.JS JAVASCRIPT ENGINE</font><br>
+<font color="orange"> 🔹 OS PLATFORM :</font> <font color="white">UBUNTU</font><br>
+<font color="orange"> 🔹 SSH SERVICE :</font> <font color="white">DROPBEAR ENHANCED BUFFER</font><br>
+<center><font color="yellow">==================================================</font></center>
+<center><font color="gold">powered by : d e d e f a t h u</font></center>
+<center><font color="yellow">==================================================</font></center>
 EOF
+
 
 echo "[*] Memulai Dropbear Server di Port Lokal 22..."
 /usr/sbin/dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -W 65536
