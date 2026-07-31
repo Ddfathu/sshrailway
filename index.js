@@ -32,7 +32,7 @@ function saveDb(data) {
     } catch (e) {}
 }
 
-// Mengambil domain aktif untuk struk akun secara otomatis
+// Mengambil domain aktif untuk struk akun
 function getCurrentHosts() {
     const namedUrl = process.env.D || "";
     let quickUrl = "Menunggu Quick Tunnel...";
@@ -245,8 +245,8 @@ const server = http.createServer((req, res) => {
             rlwyUrl = process.env.SNI.replace(/https?:\/\//i, '').replace(/\/$/, '');
         }
         
-        // Membersihkan teks agar info murninya lolos tanpa duplikasi text
-        let cleanOnlineStr = String(hwInfo.ssh_online).replace(/👥/g, '').replace(/Active/g, '').replace(/Users/g, '').replace(/Koneksi/g, '').trim();
+        // Membersihkan teks duplikat di backend agar info dari entrypoint.sh gak bertabrakan
+        let cleanOnlineStr = String(hwInfo.ssh_online).replace(/👥/g, '').replace(/Active/g, '').replace(/Users/g, '').trim();
         if(!cleanOnlineStr || cleanOnlineStr === "undefined") cleanOnlineStr = "0";
 
         const responseData = { 
@@ -255,7 +255,7 @@ const server = http.createServer((req, res) => {
             railway_url: rlwyUrl, 
             status: "ONLINE", 
             ...hwInfo,
-            ssh_online: cleanOnlineStr 
+            ssh_online: cleanOnlineStr // Mengirimkan angka murninya saja ke script frontend
         };
         res.end(JSON.stringify(responseData));
         return;
@@ -327,8 +327,7 @@ const server = http.createServer((req, res) => {
                     <div class="stat-card"><div class="stat-title">RAM Used / Total</div><div class="stat-value" id="ram">Loading...</div></div>
                     <div class="stat-card"><div class="stat-title">Disk Usage (/)</div><div class="stat-value" id="disk">Loading...</div></div>
                     <div class="stat-card"><div class="stat-title">Server Uptime</div><div class="stat-value" id="uptime" style="font-size:12px;">Loading...</div></div>
-                    <!-- 🔥 FIX TEXT TITLE: Mengubah judul card menjadi SSH Active Connections -->
-                    <div class="stat-card" style="border-color: #a855f7;"><div class="stat-title" style="color:#d8b4fe;">SSH Active Connections</div><div class="stat-value" id="ssh" style="font-size:14px; color:#a855f7; line-height:1.3;">👥 0 Koneksi</div></div>
+                    <div class="stat-card" style="border-color: #a855f7;"><div class="stat-title" style="color:#d8b4fe;">SSH Online Users</div><div class="stat-value" id="ssh" style="font-size:14px; color:#a855f7; line-height:1.3;">👥 0 Users</div></div>
                 </div>
 
                 <div class="ssh-manager">
@@ -361,9 +360,9 @@ const server = http.createServer((req, res) => {
                 </div>
 
                 <div class="url-section" style="border-color: #f43f5e;">
-                    <div class="url-title" style="color: #fb7185;">Server SNI</div>
+                    <div class="url-title" style="color: #fb7185;">Server SNI/Stunnel SNI MURNI</div>
                     <div class="url-box" id="railway-url" style="color: #f43f5e;">Loading...</div>
-                    <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY ALAMAT TCP PROXY</button>
+                    <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY SERVER SSH SNI/STUNNEL</button>
                 </div>
 
                 <div class="url-section">
@@ -431,20 +430,12 @@ const server = http.createServer((req, res) => {
                         let res = await fetch('/api/stats');
                         let data = await res.json();
                         document.getElementById('cpu').innerText = data.cpu_model;
-                        
-                        # 🔥 FIX SATUAN RAM: Ubah Gi menjadi GB di UI
-                        let cleanRamUsed = String(data.ram_used).replace(/Gi/gi, ' GB');
-                        let cleanRamTotal = String(data.ram_total).replace(/Gi/gi, ' GB');
-                        document.getElementById('ram').innerText = cleanRamUsed + " / " + cleanRamTotal;
-                        
+                        document.getElementById('ram').innerText = data.ram_used + " / " + data.ram_total;
                         document.getElementById('disk').innerText = data.disk_usage;
                         document.getElementById('uptime').innerText = data.uptime;
                         
                         let detailActiveList = data.user_list_details || "Semua user offline";
-                        
-                        # 🔥 FIX RENDER: Tampilkan format jumlah Koneksi Active secara bersih
-                        let connectionCount = data.ssh_online || "0";
-                        document.getElementById('ssh').innerHTML = "👥 " + connectionCount + " Koneksi Active<br><span style='font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;'>" + detailActiveList + "</span>";
+                        document.getElementById('ssh').innerHTML = "👥 " + data.ssh_online + " Users Active<br><span style='font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;'>" + detailActiveList + "</span>";
                         
                         document.getElementById('named-url').innerText = data.named_url;
                         document.getElementById('railway-url').innerText = data.railway_url;
