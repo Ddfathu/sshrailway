@@ -220,16 +220,16 @@ const server = http.createServer((req, res) => {
             try {
                 const logContent = fs.readFileSync(LOG_PATH, 'utf8');
                 const match = logContent.match(/https?:\/\/([a-zA-Z0-9-]+\.trycloudflare\.com)/);
-                if (match) quickUrl = match[0];
+                if (match) quickUrl = match[1];
             } catch (e) {}
         }
         
         let namedUrl = "Tidak Aktif (Token Kosong)";
         if (process.env.CF && process.env.D) {
-            namedUrl = process.env.D;
+            namedUrl = process.env.D.replace(/https?:\/\//, '').replace(/\/$/, '');
         }
         
-        let rlwyUrl = process.env.RLWY_PROXY || "Tidak Aktif (TCP Proxy Belum Ditambah)";
+        let rlwyUrl = process.env.RLWY_PROXY ? process.env.RLWY_PROXY.replace(/https?:\/\//, '').replace(/\/$/, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
         
         const responseData = { quick_url: quickUrl, named_url: namedUrl, railway_url: rlwyUrl, status: "ONLINE", ...hwInfo };
         res.end(JSON.stringify(responseData));
@@ -402,10 +402,7 @@ const server = http.createServer((req, res) => {
 
                 function cleanUrl(urlStr) {
                     if (!urlStr) return "";
-                    if (typeof urlStr === 'string' && (urlStr.includes('.') || urlStr.includes('localhost'))) {
-                        return urlStr.replace(/^https?:\/\//i, '').replace(/\/$/, '');
-                    }
-                    return urlStr;
+                    return String(urlStr).replace(/^https?:\/\//i, '').replace(/\/$/, '');
                 }
 
                 async function updateStats() {
