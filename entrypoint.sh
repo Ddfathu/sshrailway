@@ -90,21 +90,21 @@ fi
 
 sleep 2
 
-# Download binary cloudflared resmi
+# 🌟 MANDIRI: Download binary cloudflared resmi langsung ke system bin
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI TUNNEL 🔥 ---
+# --- 🔥 PUSAT EKSEKUSI TUNNEL MURNI SEHAT 🔥 ---
 
 # 1. Named Tunnel (Argo Token Mode)
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
-    cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
+    /usr/local/bin/cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. Quick Tunnel (Kembalikan ke mode HTTP standard agar link acak keluar normal)
+# 2. Quick Tunnel (Link Acak Engine)
 echo "[*] Menjalankan Cloudflare Quick Tunnel..."
-cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
+/usr/local/bin/cloudflared tunnel --url "http://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
 # 🔥 DATA SUPPLIER LOOP VERSI INTELIJEN SAKTI (PORT CONNECTION TRACKER)
@@ -161,7 +161,6 @@ EOF
 
 # 🔥 JALANKAN WEB DASHBOARD PANEL NODE.JS DI PORT 8081
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
-# 🌟 SINKRONISASI AKTIF: Paksa export variabel D dan RLWY_PROXY agar terbaca mutlak oleh index.js!
 export D="${D}"
 export RLWY_PROXY="${RLWY_PROXY}"
 node index.js &
