@@ -52,7 +52,6 @@ cat << 'EOF' > /etc/dropbear_banner
 EOF
 
 echo "[*] Memulai Dropbear Server di Port Lokal 22..."
-# -W 65536 = Sinkronisasi buffer raksasa
 /usr/sbin/dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -W 65536
 sleep 1 
 
@@ -95,15 +94,15 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 
 # --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL 🔥 ---
 
-# 1. Named Tunnel (Membaca Token dari variabel $CF)
+# 1. Named Tunnel (🔥 FIX UTAMA: Wajib pakai '--protocol tcp' agar Argo Token mau terhubung!)
 if [ -n "$CF" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
-    cloudflared tunnel run --protocol http2 --region as --token "$CF" > /tmp/named_tunnel.log 2>&1 &
+    cloudflared tunnel run --protocol tcp --region as --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
 # 2. Quick Tunnel (Link Acak TCP Mode Asia)
 echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode Asia)..."
-cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 --region as > /tmp/cloudflared.log 2>&1 &
+cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol tcp --region as > /tmp/cloudflared.log 2>&1 &
 
 
 # =================================================================
@@ -112,28 +111,17 @@ cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 --regio
 echo "[*] Memulai background loop pemantau hardware server..."
 (
     while true; do
-        # 1. Spesifikasi CPU
         CPU_MODEL=$(lscpu | grep 'Model name' | cut -d':' -f2 | sed -e 's/^[ \t]*//')
         [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/procinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
         [ -z "$CPU_MODEL" ] && CPU_MODEL="Railway Virtual CPU"
 
-        # 2. Informasi RAM
         RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
         RAM_USED=$(free -h | awk '/Mem:/ {print $3}')
-
-        # 3. Disk Penyimpanan Root
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
-
-        # 4. Durasi Aktif Uptime
         UPTIME=$(uptime -p | sed 's/up //')
-
-        # 5. Jumlah Sesi Koneksi User Online
         SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
-
-        # 6. Tangkap Domain Utama Kustom dari Variabel $D lu bos!
         CUSTOM_DOM="${D:-}"
 
-        # Ekspor rapi ke file JSON target agar dibaca index.py
         cat <<EOF > /tmp/server_stats.json
 {
   "cpu_model": "$CPU_MODEL",
