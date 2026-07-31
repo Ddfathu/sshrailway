@@ -12,14 +12,12 @@ NAMED_LOG_PATH = "/tmp/named_tunnel.log"
 STATS_PATH = "/tmp/server_stats.json"
 DB_PATH = "/tmp/ssh_details.json"  
 
-# Password Admin diambil dari Environment Variable Railway, defaultnya 'admin123'
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
-    # Membaca database rahasia admin
     def load_db(self):
         if os.path.exists(DB_PATH):
             try:
@@ -29,7 +27,6 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 return {}
         return {}
 
-    # Menyimpan ke database rahasia admin
     def save_db(self, data):
         try:
             with open(DB_PATH, "w") as f:
@@ -37,7 +34,6 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             pass
 
-    # 🛠️ FITUR MANAGEMENT SSH (UBUNTU / DROPBEAR MODE)
     def list_ssh(self):
         try:
             users = []
@@ -48,7 +44,6 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     username = parts[0]
                     uid = int(parts[2])
                     shell = parts[-1]
-                    # FIX UBUNTU: Mengabaikan user bawaan sistem Ubuntu, Stunnel, dan Dropbear
                     if uid >= 1000 and username not in ["nobody", "ubuntu", "sshd", "dropbear", "stunnel"]:
                         extra = db_info.get(username, {"password": "-", "ip": "Unknown", "user_agent": "Unknown"})
                         users.append({
@@ -62,8 +57,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             return {"status": "error", "message": str(e)}
 
     def get_current_hosts(self):
-        # 🔥 FIX: Membaca domain kustom langsung dari variabel D sesuai instruksi Anda
+        # 🔥 INTELLIGENCE HOST COMBINATION
         named_url = os.getenv("D", "")
+        rlwy_proxy = os.getenv("RLWY_PROXY", "")
         quick_url = "Menunggu Quick Tunnel..."
         
         if os.path.exists(LOG_PATH):
@@ -74,24 +70,27 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         quick_url = match.group(1)
             except Exception:
                 pass
-        return named_url if named_url else quick_url
+        
+        # Gabungkan info host untuk struk teks akun
+        host_output = ""
+        if named_url: host_output += f"{named_url} (Argo)"
+        if rlwy_proxy: host_output += f" / {rlwy_proxy} (Railway TCP)"
+        if not host_output or host_output == "": host_output = quick_url
+        
+        return host_output
 
     def add_ssh(self, username, password, ip_addr, user_agent):
         if not username or not password:
             return {"status": "error", "message": "Username dan password wajib diisi!"}
-        
-        # Validasi keamanan format nama user
         if not re.match(r"^[a-zA-Z0-9_-]+$", username):
             return {"status": "error", "message": "Username mengandung karakter ilegal!"}
 
         try:
-            # FIX UBUNTU: Menggunakan sintaks useradd bawaan Ubuntu
             cmd_user = f"useradd -m -s /bin/bash {username}"
             subprocess.run(cmd_user, shell=True, check=True)
             cmd_pass = f"echo '{username}:{password}' | chpasswd"
             subprocess.run(cmd_pass, shell=True, check=True)
             
-            # SIMPAN IP, PASSWORD, DAN USER-AGENT KE DATABASE RAHASIA ADMIN
             db_info = self.load_db()
             db_info[username] = {
                 "password": password,
@@ -124,16 +123,12 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         if not username:
             return {"status": "error", "message": "Username wajib diisi!"}
         try:
-            # FIX UBUNTU: Menggunakan userdel -r bawaan Ubuntu agar bersih beserta direktorinya
             cmd_del = f"userdel -r {username}"
             subprocess.run(cmd_del, shell=True, check=True)
-            
-            # Hapus riwayat di database rahasia admin
             db_info = self.load_db()
             if username in db_info:
                 del db_info[username]
                 self.save_db(db_info)
-                
             return {"status": "success", "message": f"User {username} berhasil dihapus dari Ubuntu!"}
         except subprocess.CalledProcessError:
             return {"status": "error", "message": f"Gagal menghapus user. User '{username}' tidak ditemukan di OS."}
@@ -153,7 +148,6 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-type", "text/plain; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            
             if os.path.exists(NAMED_LOG_PATH):
                 try:
                     with open(NAMED_LOG_PATH, "r") as f:
@@ -163,7 +157,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 except Exception as e:
                     self.wfile.write(f"Gagal membaca file log internal: {str(e)}".encode('utf-8'))
             else:
-                self.wfile.write("File log /tmp/named_tunnel.log belum terbentuk di server, Bos! Pastikan token di env Railway sudah terisi dengan benar.".encode('utf-8'))
+                self.wfile.write("File log /tmp/named_tunnel.log belum terbentuk.".encode('utf-8'))
             return
 
         if path == "/api/add":
@@ -184,7 +178,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             token = query.get("token", [None])[0]
             if token != ADMIN_PASSWORD:
-                self.wfile.write(json.dumps({"status": "error", "message": "Akses Ditolak! Cuma admin yang boleh hapus!"}).encode('utf-8'))
+                self.wfile.write(json.dumps({"status": "error", "message": "Akses Ditolak!"}).encode('utf-8'))
                 return
             username = query.get("user", [None])[0]
             response_data = self.delete_ssh(username)
@@ -219,7 +213,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             quick_url = "Menunggu Quick Tunnel siap..."
             status = "ONLINE"
-            hw_info = {"cpu_model": "Loading...", "ram_total": "0", "ram_used": "0", "disk_usage": "0%", "uptime": "0", "ssh_online": "0", "custom_domain": ""}
+            hw_info = {"cpu_model": "Loading...", "ram_total": "0", "ram_used": "0", "disk_usage": "0%", "uptime": "0", "ssh_online": "0", "custom_domain": "", "railway_proxy": ""}
             if os.path.exists(STATS_PATH):
                 try:
                     with open(STATS_PATH, "r") as f:
@@ -235,13 +229,14 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 except Exception:
                     pass
             
-            # 🔥 FIX: Validasi status Named Tunnel dengan mengecek kecocokan token CF dan isi Domain D
             named_url = "Tidak Aktif (Token Kosong)"
             custom_domain_val = os.getenv("D", "")
             if os.getenv("CF") and custom_domain_val:
                 named_url = "https://" + custom_domain_val.replace("https://", "").replace("http://", "")
                 
-            response_data = {"quick_url": quick_url, "named_url": named_url, "status": status, **hw_info}
+            rlwy_url = os.getenv("RLWY_PROXY", "Tidak Aktif (TCP Proxy Belum Ditambah)")
+                
+            response_data = {"quick_url": quick_url, "named_url": named_url, "railway_url": rlwy_url, "status": status, **hw_info}
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
             return
 
@@ -277,7 +272,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 .input-ssh { background: #030712; border: 1px solid #4b5563; padding: 8px 12px; border-radius: 6px; color: #fff; font-size: 13px; width: 100%; }
                 .btn-add { background: #38bdf8; color: #090d16; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
                 .admin-status-lbl { font-size: 10px; font-weight: bold; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 2px 6px; border-radius: 4px; }
-                .result-box { display: none; background: #030712; border: 1px solid #4ade80; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; color: #4ade80; white-space: pre-wrap; margin-bottom: 15px; overflow-x: hidden; }
+                .result-box { display: none; background: #030712; border: 1px solid #4ade80; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; color: #4ade80; white-wrap: pre-wrap; margin-bottom: 15px; overflow-x: hidden; }
                 .btn-copy-result { display: none; background: #4ade80; color: #090d16; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; width: 100%; margin-bottom: 15px; }
                 
                 .ssh-list { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
@@ -299,7 +294,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             <div class="container">
                 <div class="header">
                     <h1>👑 DDFATHU DOUBLE MONITOR 👑</h1>
-                    <div class="dev-tag">DYNAMIC DUAL-TUNNEL CORE ACTIVE</div>
+                    <div class="dev-tag">DYNAMIC TRIPLE-TUNNEL CORE ACTIVE</div>
                     <button class="btn-login-trigger" id="admin-login-btn" onclick="promptAdminLogin()">🔑 LOGIN ADMIN</button>
                 </div>
                 
@@ -344,12 +339,19 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     <button class="btn-copy" id="btn-copy-named" style="background:#a855f7; color:#fff;" onclick="copyTxt('named-url', 'btn-copy-named')">📋 COPY DOMAIN UTAMA</button>
                 </div>
 
+                <!-- 🔥 NEW SECTION: RAILWAY INTERN TCP PROXY BOX -->
+                <div class="url-section" style="border-color: #f43f5e;">
+                    <div class="url-title" style="color: #fb7185;">2. Railway TCP Proxy (Jalur Muxer Utama)</div>
+                    <div class="url-box" id="railway-url" style="color: #f43f5e;">Loading...</div>
+                    <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY ALAMAT TCP PROXY</button>
+                </div>
+
                 <div class="url-section">
-                    <div class="url-title">2. Quick Tunnel (Link Acak Bumper Worker)</div>
+                    <div class="url-title">3. Quick Tunnel (Link Acak Bumper Worker)</div>
                     <div class="url-box" id="quick-url">Loading...</div>
                     <button class="btn-copy" id="btn-copy-quick" onclick="copyTxt('quick-url', 'btn-copy-quick')">📋 COPY LINK ACAK WORKER</button>
                 </div>
-                <p class="note">Dua tunnel berjalan beriringan tanpa bentrok.<br>Salin link acak di atas ke dalam bumper Worker lu.</p>
+                <p class="note">Tiga rute tunnel berjalan sinkron tanpa bentrok.<br>Salin data host di atas sesuai kebutuhan rute VPN lu.</p>
             </div>
 
             <script>
@@ -414,6 +416,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         document.getElementById('uptime').innerText = data.uptime;
                         document.getElementById('ssh').innerText = "👥 " + data.ssh_online + " Users";
                         document.getElementById('named-url').innerText = data.named_url;
+                        document.getElementById('railway-url').innerText = data.railway_url;
                         document.getElementById('quick-url').innerText = data.quick_url;
                     } catch(e) { console.log(e); }
                 }
@@ -537,8 +540,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         btn.style.color = "#090d16";
                         setTimeout(() => {
                             btn.innerText = oldText;
-                            btn.style.background = elementId === 'named-url' ? '#a855f7' : '#38bdf8';
-                            btn.style.color = elementId === 'named-url' ? '#fff' : '#090d16';
+                            if (elementId === 'named-url') { btn.style.background = '#a855f7'; btn.style.color = '#fff'; }
+                            else if (elementId === 'railway-url') { btn.style.background = '#f43f5e'; btn.style.color = '#fff'; }
+                            else { btn.style.background = '#38bdf8'; btn.style.color = '#090d16'; }
                         }, 1500);
                     }
                 }
