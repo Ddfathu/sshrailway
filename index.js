@@ -226,10 +226,10 @@ const server = http.createServer((req, res) => {
         
         let namedUrl = "Tidak Aktif (Token Kosong)";
         if (process.env.CF && process.env.D) {
-            namedUrl = process.env.D.replace(/https?:\/\//, '').replace(/\/$/, '');
+            namedUrl = process.env.D.replace(/https?:\/\//i, '');
         }
         
-        let rlwyUrl = process.env.RLWY_PROXY ? process.env.RLWY_PROXY.replace(/https?:\/\//, '').replace(/\/$/, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
+        let rlwyUrl = process.env.RLWY_PROXY ? process.env.RLWY_PROXY.replace(/https?:\/\//i, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
         
         const responseData = { quick_url: quickUrl, named_url: namedUrl, railway_url: rlwyUrl, status: "ONLINE", ...hwInfo };
         res.end(JSON.stringify(responseData));
@@ -262,6 +262,7 @@ const server = http.createServer((req, res) => {
                 .stat-title { font-size: 11px; color: #94a3b8; text-transform: uppercase; }
                 .stat-value { font-size: 14px; font-weight: bold; color: #f1f5f9; margin-top: 4px; }
                 .ssh-manager { background: #1f2937; padding: 15px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 20px; position: relative;}
+                .ssh-manager input::placeholder { color: #4b5563; }
                 .ssh-title { font-size: 13px; font-weight: bold; color: #38bdf8; text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
                 .input-group { display: flex; gap: 8px; margin-bottom: 10px; }
                 .input-ssh { background: #030712; border: 1px solid #4b5563; padding: 8px 12px; border-radius: 6px; color: #fff; font-size: 13px; width: 100%; }
@@ -387,7 +388,7 @@ const server = http.createServer((req, res) => {
                     if(!pass) return;
                     
                     try {
-                        let res = await fetch(\`/api/login?pass=\${pass}\`);
+                        let res = await fetch("/api/login?pass=" + pass);
                         let data = await res.json();
                         if(data.status === "success") {
                             adminToken = data.token;
@@ -400,31 +401,26 @@ const server = http.createServer((req, res) => {
                     } catch(e) { alert("Gagal terhubung ke API Login"); }
                 }
 
-                function cleanUrl(urlStr) {
-                    if (!urlStr) return "";
-                    return String(urlStr).replace(/^https?:\/\//i, '').replace(/\/$/, '');
-                }
-
                 async function updateStats() {
                     try {
                         let res = await fetch('/api/stats');
                         let data = await res.json();
                         
-                        document.getElementById('cpu').innerText = data.cpu_model || "Unknown CPU";
-                        document.getElementById('ram').innerText = (data.ram_used || "0") + " / " + (data.ram_total || "0");
-                        document.getElementById('disk').innerText = data.disk_usage || "0%";
-                        document.getElementById('uptime').innerText = data.uptime || "0";
+                        document.getElementById('cpu').innerText = data.cpu_model;
+                        document.getElementById('ram').innerText = data.ram_used + " / " + data.ram_total;
+                        document.getElementById('disk').innerText = data.disk_usage;
+                        document.getElementById('uptime').innerText = data.uptime;
                         
-                        let sshStatusTxs = data.ssh_online || "👥 0 Users Active";
-                        let sshDetailsTxs = data.user_list_details || "Semua user offline";
-                        document.getElementById('ssh').innerHTML = \`\${sshStatusTxs}<br><span style="font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;">\${sshDetailsTxs}</span>\`;
+                        // Menampilkan data user aktif dari backend
+                        let shStatus = data.ssh_online || "👥 0 Users";
+                        let shDetails = data.user_list_details || "Semua user offline";
+                        document.getElementById('ssh').innerHTML = shStatus + '<br><span style="font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;">' + shDetails + '</span>';
                         
-                        document.getElementById('named-url').innerText = cleanUrl(data.named_url);
-                        document.getElementById('railway-url').innerText = cleanUrl(data.railway_url);
-                        document.getElementById('quick-url').innerText = cleanUrl(data.quick_url);
-                    } catch(e) { 
-                        console.error("Error UI Stats Update:", e); 
-                    }
+                        // Menampilkan domain murni di kotak UI (karena backend sudah memotong http:// / https://)
+                        document.getElementById('named-url').innerText = data.named_url;
+                        document.getElementById('railway-url').innerText = data.railway_url;
+                        document.getElementById('quick-url').innerText = data.quick_url;
+                    } catch(e) { console.log(e); }
                 }
 
                 async function fetchAccounts() {
@@ -437,22 +433,20 @@ const server = http.createServer((req, res) => {
                         if(data.status === "success" && data.users.length > 0) {
                             savedUsersData = data.users; 
                             data.users.forEach(u => {
-                                tbody.innerHTML += \`
-                                    <tr>
-                                        <td style="font-weight:bold; color:#f1f5f9;">👤 \${u.username}</td>
-                                        <td style="color:#64748b;">\${u.shell}</td>
-                                        <td style="text-align: right;">
-                                            <div class="btn-action-group">
-                                                <button class="btn-info" onclick="showAccountDetails('\${u.username}')">👁️ INFO</button>
-                                                <button class="btn-del" onclick="deleteAccount('\${u.username}')">HAPUS</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                \`;
+                                tbody.innerHTML += '<tr>' +
+                                    '<td style="font-weight:bold; color:#f1f5f9;">👤 ' + u.username + '</td>' +
+                                    '<td style="color:#64748b;">' + u.shell + '</td>' +
+                                    '<td style="text-align: right;">' +
+                                        '<div class="btn-action-group">' +
+                                            '<button class="btn-info" onclick="showAccountDetails(\'' + u.username + '\')">👁️ INFO</button>' +
+                                            '<button class="btn-del" onclick="deleteAccount(\'' + u.username + '\')">HAPUS</button>' +
+                                        '</div>' +
+                                    '</td>' +
+                                '</tr>';
                             });
                             checkAdminUI();
                         } else {
-                            tbody.innerHTML = \`<tr><td colspan="3" style="text-align:center; color:#64748b;">Belum ada akun SSH kustom</td></tr>\`;
+                            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#64748b;">Belum ada akun SSH kustom</td></tr>';
                         }
                     } catch(e) { console.log(e); }
                 }
@@ -461,11 +455,11 @@ const server = http.createServer((req, res) => {
                     let userObj = savedUsersData.find(u => u.username === username);
                     if(userObj) {
                         alert(
-                            "🕵️ DATA RAHASIA PEMBUAT AKUN:\\n" +
-                            "===============================\\n" +
-                            "👤 Username   : " + userObj.username + "\\n" +
-                            "🔑 Password   : " + userObj.password + "\\n" +
-                            "🌐 IP Address : " + userObj.ip + "\\n" +
+                            "🕵️ DATA RAHASIA PEMBUAT AKUN:\n" +
+                            "===============================\n" +
+                            "👤 Username   : " + userObj.username + "\n" +
+                            "🔑 Password   : " + userObj.password + "\n" +
+                            "🌐 IP Address : " + userObj.ip + "\n" +
                             "📱 User-Agent : " + userObj.user_agent
                         );
                     }
@@ -484,7 +478,7 @@ const server = http.createServer((req, res) => {
                         return;
                     }
                     try {
-                        let res = await fetch(\`/api/add?user=\${user}&pass=\${pass}\`);
+                        let res = await fetch("/api/add?user=" + user + "&pass=" + pass);
                         let data = await res.json();
                         if(data.status === "success") {
                             msg.innerText = "";
@@ -522,9 +516,9 @@ const server = http.createServer((req, res) => {
                         alert("Aksi Ilegal! Lu harus Login Admin dulu Bos!");
                         return;
                     }
-                    if(confirm(\`Hapus akun SSH '\${username}'?\`)) {
+                    if(confirm("Hapus akun SSH '" + username + "'?")) {
                         try {
-                            let res = await fetch(\`/api/delete?user=\${username}&token=\${adminToken}\`);
+                            let res = await fetch("/api/delete?user=" + username + "&token=" + adminToken);
                             let data = await res.json();
                             if(data.status === "success") {
                                 fetchAccounts();
