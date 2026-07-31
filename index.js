@@ -48,8 +48,8 @@ function getCurrentHosts() {
     }
     
     let hostOutput = "";
-    if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (Argo)`;
-    if (process.env.RLWY_PROXY) hostOutput += ` / ${process.env.RLWY_PROXY.replace(/https?:\/\//, '')} (Server SNI)`;
+    if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (gunakan url ini untuk server ssh websocket)`;
+    if (process.env.RLWY_PROXY) hostOutput += ` dan ${process.env.RLWY_PROXY.replace(/https?:\/\//, '')} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
     if (!hostOutput) hostOutput = quickUrl.replace(/https?:\/\//, '');
     
     return hostOutput;
@@ -299,7 +299,7 @@ const server = http.createServer((req, res) => {
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>👑 DDFATHU DOUBLE MONITOR 👑</h1>
+                    <h1>👑 SELAMAT DATANG DI SERVER SSH RAILWAY 👑</h1>
                     <div class="dev-tag">DYNAMIC TRIPLE-TUNNEL NODE CORE ACTIVE</div>
                     <button class="btn-login-trigger" id="admin-login-btn" onclick="promptAdminLogin()">🔑 LOGIN ADMIN</button>
                 </div>
@@ -340,21 +340,21 @@ const server = http.createServer((req, res) => {
                 </div>
                 
                 <div class="url-section" style="border-color: #a855f7;">
-                    <div class="url-title" style="color: #d8b4fe;">1. Named Tunnel (Domain Utama)</div>
+                    <div class="url-title" style="color: #d8b4fe;">Server ssh aktif</div>
                     <div class="url-box" id="named-url">Loading...</div>
-                    <button class="btn-copy" id="btn-copy-named" style="background:#a855f7; color:#fff;" onclick="copyTxt('named-url', 'btn-copy-named')">📋 COPY DOMAIN UTAMA</button>
+                    <button class="btn-copy" id="btn-copy-named" style="background:#a855f7; color:#fff;" onclick="copyTxt('named-url', 'btn-copy-named')">📋 COPY SSH SERVER</button>
                 </div>
 
                 <div class="url-section" style="border-color: #f43f5e;">
-                    <div class="url-title" style="color: #fb7185;">2. Server SNI</div>
+                    <div class="url-title" style="color: #fb7185;">Server SNI</div>
                     <div class="url-box" id="railway-url" style="color: #f43f5e;">Loading...</div>
                     <button class="btn-copy" id="btn-copy-railway" style="background:#f43f5e; color:#fff;" onclick="copyTxt('railway-url', 'btn-copy-railway')">📋 COPY ALAMAT TCP PROXY</button>
                 </div>
 
                 <div class="url-section">
-                    <div class="url-title">3. Quick Tunnel (Link Acak Bumper Worker)</div>
+                    <div class="url-title">Quick Tunnel url(fungsi masih dalam pengembangan)</div>
                     <div class="url-box" id="quick-url">Loading...</div>
-                    <button class="btn-copy" id="btn-copy-quick" onclick="copyTxt('quick-url', 'btn-copy-quick')">📋 COPY LINK ACAK WORKER</button>
+                    <button class="btn-copy" id="btn-copy-quick" onclick="copyTxt('quick-url', 'btn-copy-quick')">📋 COPY LINK QUICK TUNNEL</button>
                 </div>
                 <p class="note">Tiga rute tunnel berjalan sinkron tanpa bentrok.<br>Node.js Core Engine Rendering System.</p>
             </div>
