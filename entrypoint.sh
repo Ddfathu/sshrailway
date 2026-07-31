@@ -94,7 +94,7 @@ sleep 2
 echo "[*] Mengunduh binary cloudflared resmi..."
 curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x /usr/local/bin/cloudflared
 
-# --- 🔥 PUSAT EKSEKUSI TUNNEL FIX SAKTI 🔥 ---
+# --- 🔥 PUSAT EKSEKUSI TUNNEL (FINAL FIXED) 🔥 ---
 
 # 1. Named Tunnel (Argo Token Mode) + Bypass TLS Verifikasi Lokal
 if [ -n "$CF" ]; then
@@ -102,14 +102,12 @@ if [ -n "$CF" ]; then
     cloudflared tunnel run --protocol http2 --no-tls-verify --token "$CF" > /tmp/named_tunnel.log 2>&1 &
 fi
 
-# 2. 🔥 FIX UTAMA QUICK TUNNEL MODE HTTPS (PORT 443 RESMI) 🔥
-# Kita tembak langsung ke HTTPS lokal Stunnel dan matikan verifikasi TLS lokal.
-# Ini biar Cloudflare Edge membuka port 443 resmi secara publik yang support SNI bug lu!
-echo "[*] Menjalankan Cloudflare Quick Tunnel (Jalur HTTPS Port 443)..."
-cloudflared tunnel --url "https://127.0.0.1:$SSL_INTERNAL_PORT" --protocol http2 --no-tls-verify > /tmp/cloudflared.log 2>&1 &
+# 2. Quick Tunnel (Link Acak TCP Mode Loss Payload)
+echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode)..."
+cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 > /tmp/cloudflared.log 2>&1 &
 
 # =================================================================
-# 🔥 DATA SUPPLIER LOOP BUAT MONITORING PANEL
+# 🔥 DATA SUPPLIER LOOP VERSI INTELIJEN (LIVE MONITORING BYPASS INTER-PROCESS)
 # =================================================================
 (
     while true; do
@@ -121,8 +119,40 @@ cloudflared tunnel --url "https://127.0.0.1:$SSL_INTERNAL_PORT" --protocol http2
         RAM_USED=$(free -h | awk '/Mem:/ {print $3}')
         DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
         UPTIME=$(uptime -p | sed 's/up //')
-        SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
         
+        # 🔎 ENGINE PELACAK USER ONLINE (Mengidentifikasi koneksi aktif yang masuk ke port Dropbear 22)
+        # Langkah 1: Ambil semua PID proses anak Dropbear yang melayani client aktif
+        DROPBEAR_PIDS=$(ps aux | grep '/usr/sbin/dropbear' | grep -v grep | awk '{print $2}')
+        
+        COUNT_ONLINE=0
+        USER_DETAILS_LIST=""
+
+        # Langkah 2: Iterasi setiap PID untuk mencari tahu siapa pemilik username dan dari IP lokal mana ia ditransfer
+        for pid in $DROPBEAR_PIDS; do
+            # Cari baris socket connection di port 22 yang menggunakan PID ini
+            SOCKET_INFO=$(ss -tnp 2>/dev/null | grep "pid=$pid,")
+            if [ -n "$SOCKET_INFO" ]; then
+                # Dapatkan username pemilik proses PID tersebut
+                V_USER=$(ps -o user= -p "$pid" | sed -e 's/^[ \t]*//')
+                
+                # Saring agar user sistem bawaan seperti root/nobody tidak ikut terhitung
+                if [ -n "$V_USER" ] && [ "$V_USER" != "root" ] && [ "$V_USER" != "nobody" ]; then
+                    # Tangkap port asal koneksi internal (untuk pelacakan silang ke mux.js jika diperlukan)
+                    SRC_PORT=$(echo "$SOCKET_INFO" | awk '{print $4}' | cut -d':' -f2)
+                    
+                    USER_DETAILS_LIST="${USER_DETAILS_LIST}👤 User: ${V_USER} | 🌐 Port: ${SRC_PORT}\\n"
+                    COUNT_ONLINE=$((COUNT_ONLINE + 1))
+                fi
+            fi
+        done
+
+        if [ -z "$USER_DETAILS_LIST" ] || [ "$COUNT_ONLINE" -eq 0 ]; then
+            USER_DETAILS_LIST="Semua user offline"
+            SSH_ONLINE="0 Users"
+        else
+            SSH_ONLINE="${COUNT_ONLINE} Users"
+        fi
+
         CUSTOM_DOM="${D:-}"
         RLWY_DOM="${RLWY_PROXY:-}"
 
@@ -133,7 +163,8 @@ cloudflared tunnel --url "https://127.0.0.1:$SSL_INTERNAL_PORT" --protocol http2
   "ram_used": "$RAM_USED",
   "disk_usage": "$DISK_USAGE",
   "uptime": "$UPTIME",
-  "ssh_online": "$SSH_ONLINE",
+  "ssh_online": "👥 $SSH_ONLINE Active",
+  "user_list_details": "$USER_DETAILS_LIST",
   "custom_domain": "$CUSTOM_DOM",
   "railway_proxy": "$RLWY_DOM"
 }
