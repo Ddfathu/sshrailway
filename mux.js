@@ -6,64 +6,58 @@ const WS_TARGET = parseInt(process.env.WS_TARGET_PORT || '8880');
 const SSH_TARGET = 22;
 
 const server = net.createServer((clientConn) => {
+    // 🚀 AKTIFKAN HILANGKAN DELAY PAKET (KILAT)
     clientConn.setNoDelay(true);
     
-    // Pelindung awal jika client putus mendadak saat nego awal
-    clientConn.on('error', (err) => {
-        console.log(`[Mux] Client Early Error: ${err.message}`);
-    });
+    // Set ukuran alokasi buffer pembacaan internal menjadi 64KB (Default cuma 16KB)
+    clientConn.readableHighWaterMark = 64 * 1024;
+    clientConn.writableHighWaterMark = 64 * 1024;
 
     let isRouted = false;
 
-    // Gunakan .on('data') biasa agar semua chunk split tertampung
+    // Proteksi timeout awal 3 detik agar socket mati tidak menggantung
+    const handshakeTimeout = setTimeout(() => {
+        if (!isRouted) {
+            clientConn.destroy();
+        }
+    }, 3000);
+
     const handleInitialData = (buffer) => {
         if (isRouted) return;
         
         if (buffer.length > 0) {
             isRouted = true;
-            clientConn.removeListener('data', handleInitialData); // Lepas agar tidak double trigger
+            clearTimeout(handshakeTimeout);
+            clientConn.removeListener('data', handleInitialData);
 
             let targetPort = WS_TARGET;
-            let label = "WS-Proxy / Payload";
 
-            // Deteksi tipe lalu lintas data
             if (buffer[0] === 0x16) {
                 targetPort = SSL_TARGET;
-                label = "SSL/Stunnel (SNI)";
             } else if (buffer.toString('utf8', 0, 4) === 'SSH-') {
                 targetPort = SSH_TARGET;
-                label = "Raw Dropbear (Port 22)";
             }
 
-            console.log(`[Mux] Mengalihkan koneksi ke ${label} pada port ${targetPort}`);
-
-            const backendConn = net.createConnection({ port: targetPort, host: '127.0.0.1' }, () => {
+            // Koneksi ke backend target dengan optimasi buffer raksasa
+            const backendConn = net.createConnection({ 
+                port: targetPort, 
+                host: '127.0.0.1',
+                readableHighWaterMark: 64 * 1024,
+                writableHighWaterMark: 64 * 1024
+            }, () => {
                 backendConn.setNoDelay(true);
                 
-                // Kirim buffer pertama secara utuh tanpa ada byte yang hilang
+                // Kirim byte jabat tangan awal
                 backendConn.write(buffer);
                 
-                // Buat aliran data manual dua arah langsung aktif secara transparan
-                clientConn.on('data', (data) => {
-                    if (backendConn.writable) backendConn.write(data);
-                });
-
-                backendConn.on('data', (data) => {
-                    if (clientConn.writable) clientConn.write(data);
-                });
+                // 🔥 KUNCI UTAMA: Menggunakan fungsi .pipe bawaan Node.JS + anti-backpressure
+                // Ini otomatis ngerem & ngedorong data sesuai bandwidth asli biar container gak choking/rekonek
+                clientConn.pipe(backendConn);
+                backendConn.pipe(clientConn);
             });
 
-            // Manajemen penutupan socket agar sinkron dan bersih
-            backendConn.on('error', (err) => {
-                console.log(`[Mux] Backend Error: ${err.message}`);
-                clientConn.destroy();
-            });
-
-            clientConn.on('error', (err) => {
-                console.log(`[Mux] Client Stream Error: ${err.message}`);
-                backendConn.destroy();
-            });
-            
+            backendConn.on('error', () => clientConn.destroy());
+            clientConn.on('error', () => backendConn.destroy());
             backendConn.on('close', () => clientConn.destroy());
             clientConn.on('close', () => backendConn.destroy());
         }
@@ -73,5 +67,5 @@ const server = net.createServer((clientConn) => {
 });
 
 server.listen(PUBLIC_PORT, '0.0.0.0', () => {
-    console.log(`[Mux JS] Running on port ${PUBLIC_PORT} -> SSL:${SSL_TARGET} | WS:${WS_TARGET}`);
+    console.log(`[Mux JS] Turbo Speed Engine Active on Port ${PUBLIC_PORT}`);
 });
