@@ -167,6 +167,10 @@ EOF
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
 node index.js &
 
+# 🌟 JALANKAN CORE SERVER VMESS DI PORT 8082
+echo "[*] Memulai Xray Core Server VMess di Port 8082..."
+node vmess.js &
+
 sleep 2
 
 # =================================================================
