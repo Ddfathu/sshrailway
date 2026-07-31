@@ -49,8 +49,8 @@ function getCurrentHosts() {
     
     let hostOutput = "";
     if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (Argo)`;
-    if (process.env.RLWY_PROXY) hostOutput += ` / ${process.env.RLWY_PROXY.replace(/https?:\/\//, '')} (Server SNI)`;
-    if (!hostOutput) hostOutput = quickUrl.replace(/https?:\/\//, '');
+    if (process.env.RLWY_PROXY) hostOutput += ` / ${process.env.RLWY_PROXY} (Server SNI)`;
+    if (!hostOutput) hostOutput = quickUrl;
     
     return hostOutput;
 }
@@ -403,12 +403,6 @@ const server = http.createServer((req, res) => {
                     } catch(e) { alert("Gagal terhubung ke API Login"); }
                 }
 
-                // Fungsi pembersih URL aman tanpa merusak template literal script asli
-                function cleanUrlText(txt) {
-                    if(!txt) return "";
-                    return String(txt).replace(/^https?:\/\//i, '').replace(/\/$/, '');
-                }
-
                 async function updateStats() {
                     try {
                         let res = await fetch('/api/stats');
@@ -418,11 +412,9 @@ const server = http.createServer((req, res) => {
                         document.getElementById('disk').innerText = data.disk_usage;
                         document.getElementById('uptime').innerText = data.uptime;
                         document.getElementById('ssh').innerText = "👥 " + data.ssh_online + " Users";
-                        
-                        // Membersihkan prefix https:// langsung saat dimuat ke box layar UI
-                        document.getElementById('named-url').innerText = cleanUrlText(data.named_url);
-                        document.getElementById('railway-url').innerText = cleanUrlText(data.railway_url);
-                        document.getElementById('quick-url').innerText = cleanUrlText(data.quick_url);
+                        document.getElementById('named-url').innerText = data.named_url;
+                        document.getElementById('railway-url').innerText = data.railway_url;
+                        document.getElementById('quick-url').innerText = data.quick_url;
                     } catch(e) { console.log(e); }
                 }
 
