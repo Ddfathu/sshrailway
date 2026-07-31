@@ -76,7 +76,6 @@ export WS_PORT="$WS_INTERNAL_PORT"
 node ws-proxy.js &
 
 # --- 🔥 UTAMA: JALANKAN BADVPN UDPGW UNTUK GAME MODE 🔥 ---
-# Mencoba mendeteksi lokasi binary udpgw baik di /usr/local/bin atau /app
 if [ -f /usr/local/bin/badvpn-udpgw ]; then
     echo "[*] Memulai BadVPN udpgw di Port Lokal 7300..."
     /usr/local/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 500 --max-connections-for-client 20 &
@@ -96,25 +95,70 @@ curl -fsSL -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflar
 
 # --- 🔥 PUSAT EKSEKUSI DOUBLE TUNNEL 🔥 ---
 
-# 1. Named Tunnel (Membaca variabel kustom $CF lu bos)
-if [ -n "$CF" ]; then
+# 1. Named Tunnel (Membaca variabel kustom $D dari Railway)
+if [ -n "$D" ]; then
     echo "[*] Menjalankan Cloudflare Named Tunnel (Argo Token Mode)..."
-    cloudflared tunnel run --protocol http2 --region as --token "$CF" > /tmp/named_tunnel.log 2>&1 &
+    cloudflared tunnel run --protocol http2 --region as --token "$D" > /tmp/named_tunnel.log 2>&1 &
 fi
 
 # 2. Quick Tunnel (Link Acak TCP Mode Asia)
 echo "[*] Menjalankan Cloudflare Quick Tunnel (Link Acak TCP Mode Asia)..."
 cloudflared tunnel --url "tcp://127.0.0.1:$PUBLIC_PORT" --protocol http2 --region as > /tmp/cloudflared.log 2>&1 &
 
-# 🔥 TAMBAHAN UTAMA: Jalankan Web Dashboard Python di port 8081 (background process)
+
+# =================================================================
+# 🔥 BACKGROUND HARDWARE TRACKER LOOP (SUPPLIER RAW DATA INDEX.PY)
+# =================================================================
+echo "[*] Memulai background loop pemantau hardware server..."
+(
+    while true; do
+        # 1. Mengambil Spesifikasi CPU
+        CPU_MODEL=$(lscpu | grep 'Model name' | cut -d':' -f2 | sed -e 's/^[ \t]*//')
+        [ -z "$CPU_MODEL" ] && CPU_MODEL=$(grep -m1 'model name' /proc/procinfo 2>/dev/null | cut -d':' -f2 | sed -e 's/^[ \t]*//')
+        [ -z "$CPU_MODEL" ] && CPU_MODEL="Railway Virtual CPU"
+
+        # 2. Mengambil Informasi Kapasitas RAM
+        RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
+        RAM_USED=$(free -h | awk '/Mem:/ {print $3}')
+
+        # 3. Mengambil Informasi Disk Penyimpanan (Root)
+        DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
+
+        # 4. Mengambil Data Durasi Aktif Server
+        UPTIME=$(uptime -p | sed 's/up //')
+
+        # 5. Menghitung Jumlah Sesi Koneksi Aktif User Dropbear
+        SSH_ONLINE=$(ps aux | grep -i dropbear | grep -v grep | grep -v '/usr/sbin/dropbear' | wc -l)
+
+        # 6. Menangkap Konfigurasi Custom Domain dari Env Railway
+        CUSTOM_DOM="${DOMAIN_UTAMA:-}"
+
+        # Ekspor rapi ke format berkas JSON /tmp/server_stats.json agar di-consume index.py
+        cat <<EOF > /tmp/server_stats.json
+{
+  "cpu_model": "$CPU_MODEL",
+  "ram_total": "$RAM_TOTAL",
+  "ram_used": "$RAM_USED",
+  "disk_usage": "$DISK_USAGE",
+  "uptime": "$UPTIME",
+  "ssh_online": "$SSH_ONLINE",
+  "custom_domain": "$CUSTOM_DOM"
+}
+EOF
+        sleep 2
+    done
+) &
+
+# 🔥 JALANKAN WEB DASHBOARD PANEL PYTHON DI PORT 8081 (BACKGROUND PROCESS)
 echo "[*] Memulai Web Dashboard Panel di Port 8081..."
 python3 index.py &
 
-# Kasih jeda napas biar port ngebinding sempurna sebelum Muxer jalan
+# Jeda penyeimbang agar rute internal dan loopback mengunci sempurna
 sleep 2
 
 # =================================================================
-
+# 👑 EKSEKUSI ENGINE MUX UTAMA JAVASCRIPT
+# =================================================================
 echo "[*] Memulai Muxer Utama (JavaScript)..."
 export PORT="$PUBLIC_PORT"
 export SSL_TARGET_PORT="$SSL_INTERNAL_PORT"
