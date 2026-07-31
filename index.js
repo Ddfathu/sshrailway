@@ -220,16 +220,16 @@ const server = http.createServer((req, res) => {
             try {
                 const logContent = fs.readFileSync(LOG_PATH, 'utf8');
                 const match = logContent.match(/https?:\/\/([a-zA-Z0-9-]+\.trycloudflare\.com)/);
-                if (match) quickUrl = match[1];
+                if (match) quickUrl = match[0];
             } catch (e) {}
         }
         
         let namedUrl = "Tidak Aktif (Token Kosong)";
         if (process.env.CF && process.env.D) {
-            namedUrl = process.env.D.replace(/https?:\/\//, '');
+            namedUrl = process.env.D;
         }
         
-        let rlwyUrl = process.env.RLWY_PROXY ? process.env.RLWY_PROXY.replace(/https?:\/\//, '') : "Tidak Aktif (TCP Proxy Belum Ditambah)";
+        let rlwyUrl = process.env.RLWY_PROXY || "Tidak Aktif (TCP Proxy Belum Ditambah)";
         
         const responseData = { quick_url: quickUrl, named_url: namedUrl, railway_url: rlwyUrl, status: "ONLINE", ...hwInfo };
         res.end(JSON.stringify(responseData));
@@ -401,26 +401,33 @@ const server = http.createServer((req, res) => {
                 }
 
                 function cleanUrl(urlStr) {
-                    if(!urlStr) return "";
-                    return urlStr.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+                    if (!urlStr) return "";
+                    if (typeof urlStr === 'string' && (urlStr.includes('.') || urlStr.includes('localhost'))) {
+                        return urlStr.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+                    }
+                    return urlStr;
                 }
 
                 async function updateStats() {
                     try {
                         let res = await fetch('/api/stats');
                         let data = await res.json();
-                        document.getElementById('cpu').innerText = data.cpu_model;
-                        document.getElementById('ram').innerText = data.ram_used + " / " + data.ram_total;
-                        document.getElementById('disk').innerText = data.disk_usage;
-                        document.getElementById('uptime').innerText = data.uptime;
                         
-                        document.getElementById('ssh').innerHTML = \`\${data.ssh_online}<br><span style="font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;">\${data.user_list_details || 'Semua user offline'}</span>\`;
+                        document.getElementById('cpu').innerText = data.cpu_model || "Unknown CPU";
+                        document.getElementById('ram').innerText = (data.ram_used || "0") + " / " + (data.ram_total || "0");
+                        document.getElementById('disk').innerText = data.disk_usage || "0%";
+                        document.getElementById('uptime').innerText = data.uptime || "0";
                         
-                        // Menghilangkan https:// langsung di tampilan box UI frontend
+                        let sshStatusTxs = data.ssh_online || "👥 0 Users Active";
+                        let sshDetailsTxs = data.user_list_details || "Semua user offline";
+                        document.getElementById('ssh').innerHTML = \`\${sshStatusTxs}<br><span style="font-size:11px; font-weight:normal; color:#d8b4fe; display:block; margin-top:5px; white-space:pre-line;">\${sshDetailsTxs}</span>\`;
+                        
                         document.getElementById('named-url').innerText = cleanUrl(data.named_url);
                         document.getElementById('railway-url').innerText = cleanUrl(data.railway_url);
                         document.getElementById('quick-url').innerText = cleanUrl(data.quick_url);
-                    } catch(e) { console.log(e); }
+                    } catch(e) { 
+                        console.error("Error UI Stats Update:", e); 
+                    }
                 }
 
                 async function fetchAccounts() {
