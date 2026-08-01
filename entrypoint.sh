@@ -145,11 +145,6 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel..."
 
         CUSTOM_DOM="${D:-}"
         RLWY_DOM="${SNI:-}"
-        
-        # 🌟 LOGIKA CERDAS: Isi statistik json dengan proxy otomatis Railway jika tersedia
-        if [ -n "$RAILWAY_TCP_PROXY_DOMAIN" ] && [ -n "$RAILWAY_TCP_PROXY_PORT" ]; then
-            RLWY_DOM="${RAILWAY_TCP_PROXY_DOMAIN}:${RAILWAY_TCP_PROXY_PORT}"
-        fi
 
         cat <<EOF > /tmp/server_stats.json
 {
@@ -160,26 +155,28 @@ echo "[*] Menjalankan Cloudflare Quick Tunnel..."
   "uptime": "$UPTIME",
   "ssh_online": "👥 $SSH_ONLINE Active",
   "user_list_details": "$USER_DETAILS_LIST",
-  "custom_domain": "$CUSTOM_DOM",
-  "railway_proxy": "$RLWY_DOM"
+  "custom_domain": "$CUSTOM_DOM"
 }
 EOF
         sleep 2
     done
 ) &
 
-# 🔥 JALANKAN WEB DASHBOARD PANEL NODE.JS DI PORT 8081
+# =================================================================
+# 🔥 PONDASI SINGKRONISASI VARIABEL TCP PROXY ASLI RAILWAY
+# =================================================================
+# Memberikan waktu tunggu 12 detik agar container sukses terdeteksi "healthy" 
+# dan Railway sempat menginjeksikan variabel proxy aslinya ke container environment.
+echo "[*] Menahan proses Node Panel Engine selama 12 detik demi sinkronisasi Proxy Asli Railway..."
+sleep 12
+
 echo "[*] Memulai Web Dashboard Panel (Node.js Engine) di Port 8081..."
 export D="${D}"
 export SNI="${SNI}"
-# 🔥 NANEM OTOMATIS: Loloskan variabel TCP internal Railway ke process.env Node.js global
-export RAILWAY_TCP_PROXY_DOMAIN="${RAILWAY_TCP_PROXY_DOMAIN}"
-export RAILWAY_TCP_PROXY_PORT="${RAILWAY_TCP_PROXY_PORT}"
 node index.js &
 
 sleep 2
 
-# =================================================================
 echo "[*] Memulai Muxer Utama (JavaScript)..."
 export PORT="$PUBLIC_PORT"
 export SSL_TARGET_PORT="$SSL_INTERNAL_PORT"
