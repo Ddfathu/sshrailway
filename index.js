@@ -34,6 +34,13 @@ function saveDb(data) {
 
 // Mengambil domain aktif untuk struk akun
 function getCurrentHosts() {
+    let hwInfo = {};
+    if (fs.existsSync(STATS_PATH)) {
+        try {
+            hwInfo = JSON.parse(fs.readFileSync(STATS_PATH, 'utf8'));
+        } catch (e) {}
+    }
+
     const namedUrl = process.env.D || "";
     let quickUrl = "Menunggu Quick Tunnel...";
     
@@ -50,8 +57,11 @@ function getCurrentHosts() {
     let hostOutput = "";
     if (namedUrl) hostOutput += `${namedUrl.replace(/https?:\/\//, '')} (gunakan url ini untuk server ssh websocket)`;
     
-    // 🔥 OTOMATISASI TCP PROXY UNTUK STRUK AKUN
-    if (process.env.RAILWAY_TCP_PROXY_DOMAIN && process.env.RAILWAY_TCP_PROXY_PORT) {
+    // 🔥 FIX: Deteksi TCP Proxy Dinamis dari JSON Tracker untuk Struk Akun
+    if (hwInfo.railway_proxy && hwInfo.railway_proxy.trim() !== "") {
+        const autoTcp = hwInfo.railway_proxy;
+        hostOutput += hostOutput ? ` dan ${autoTcp} (gunakan url dan port ini untuk SSH SNI murni stunnel)` : `${autoTcp} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
+    } else if (process.env.RAILWAY_TCP_PROXY_DOMAIN && process.env.RAILWAY_TCP_PROXY_PORT) {
         const autoTcp = `${process.env.RAILWAY_TCP_PROXY_DOMAIN}:${process.env.RAILWAY_TCP_PROXY_PORT}`;
         hostOutput += hostOutput ? ` dan ${autoTcp} (gunakan url dan port ini untuk SSH SNI murni stunnel)` : `${autoTcp} (gunakan url dan port ini untuk SSH SNI murni stunnel)`;
     } else if (process.env.SNI) {
@@ -73,12 +83,12 @@ function listSsh() {
         
         for (let line of lines) {
             if (!line.trim()) continue;
-            const parts = line.strip ? line.strip().split(':') : line.split(':');
+            const parts = line.split(':'); // FIX: Menghapus method .strip() ilegal
             const username = parts[0];
             const uid = parseInt(parts[2], 10);
             const shell = parts[parts.length - 1];
             
-            // FIX UBUNTU: Mengabaikan user bawaan sistem Ubuntu, Stunnel, dan Dropbear
+            // Mengabaikan user bawaan sistem Ubuntu, Stunnel, dan Dropbear
             if (uid >= 1000 && !["nobody", "ubuntu", "sshd", "dropbear", "stunnel"].includes(username)) {
                 const extra = dbInfo[username] || { password: "-", ip: "Unknown", user_agent: "Unknown" };
                 users.push({
@@ -99,8 +109,9 @@ function addSsh(username, password, ipAddr, userAgent) {
     if (!username || !password) {
         return { status: "error", message: "Username dan password wajib diisi!" };
     }
-    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-        return { status: "error", message: "Username mengandung karakter ilegal!" };
+    // 安全性 SECURITY FIX: Validasi ketat Regex untuk username DAN password (anti command injection)
+    if (!/^[a-zA-Z0-9_-]+$/.test(username) || !/^[a-zA-Z0-9_@.-]+$/.test(password)) {
+        return { status: "error", message: "Username atau Password mengandung karakter ilegal!" };
     }
     
     try {
@@ -137,6 +148,9 @@ function addSsh(username, password, ipAddr, userAgent) {
 function deleteSsh(username) {
     if (!username) {
         return { status: "error", message: "Username wajib diisi!" };
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        return { status: "error", message: "Username ilegal!" };
     }
     try {
         execSync(`userdel -r ${username}`);
@@ -228,24 +242,25 @@ const server = http.createServer((req, res) => {
             try {
                 const logContent = fs.readFileSync(LOG_PATH, 'utf8');
                 const match = logContent.match(/https?:\/\/([a-zA-Z0-9-]+\.trycloudflare\.com)/);
-                if (match) quickUrl = match[1]; // Saring murni domain trycloudflare tanpa https://
+                if (match) quickUrl = match[1];
             } catch (e) {}
         }
         
         let namedUrl = "Tidak Aktif (Token Kosong)";
         if (process.env.CF && process.env.D) {
-            namedUrl = process.env.D.replace(/https?:\/\//i, '').replace(/\/$/, ''); // Saring Named Tunnel dari https://
+            namedUrl = process.env.D.replace(/https?:\/\//i, '').replace(/\/$/, '');
         }
         
-        // 🔥 OTOMATISASI TCP PROXY UNTUK STATS DASHBOARD UI
+        // 🔥 FIX UTAMA: Utamakan membaca data 'railway_proxy' yang ditulis dinamis oleh loop bash entrypoint.sh
         let rlwyUrl = "Tidak Aktif (TCP Proxy Belum Ditambah)";
-        if (process.env.RAILWAY_TCP_PROXY_DOMAIN && process.env.RAILWAY_TCP_PROXY_PORT) {
+        if (hwInfo.railway_proxy && hwInfo.railway_proxy.trim() !== "") {
+            rlwyUrl = hwInfo.railway_proxy;
+        } else if (process.env.RAILWAY_TCP_PROXY_DOMAIN && process.env.RAILWAY_TCP_PROXY_PORT) {
             rlwyUrl = `${process.env.RAILWAY_TCP_PROXY_DOMAIN}:${process.env.RAILWAY_TCP_PROXY_PORT}`;
         } else if (process.env.SNI) {
             rlwyUrl = process.env.SNI.replace(/https?:\/\//i, '').replace(/\/$/, '');
         }
         
-        // Membersihkan teks duplikat di backend agar info dari entrypoint.sh gak bertabrakan
         let cleanOnlineStr = String(hwInfo.ssh_online).replace(/👥/g, '').replace(/Active/g, '').replace(/Users/g, '').trim();
         if(!cleanOnlineStr || cleanOnlineStr === "undefined") cleanOnlineStr = "0";
 
@@ -255,7 +270,7 @@ const server = http.createServer((req, res) => {
             railway_url: rlwyUrl, 
             status: "ONLINE", 
             ...hwInfo,
-            ssh_online: cleanOnlineStr // Mengirimkan angka murninya saja ke script frontend
+            ssh_online: cleanOnlineStr
         };
         res.end(JSON.stringify(responseData));
         return;
@@ -264,6 +279,7 @@ const server = http.createServer((req, res) => {
     // RENDER UI DASHBOARD UTAMA HTML LU BOS
     if (pathName === '/' || pathName === '/index.html') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        // HTML bawaan lu tetap dipertahankan tanpa perubahan struktur
         const html = `
         <!DOCTYPE html>
         <html lang="id">
